@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-lambda/
+.env
+.env.local
+coverage/
+*.log
+.DS_Store
+# credenciales nunca se versionan
+**/secrets.env
+**/*.pem

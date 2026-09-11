@@ -1,0 +1,32 @@
+service: reserwaya-back
+frameworkVersion: ">=4.0.0"
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  stage: prod
+  environment:
+    NODE_ENV: production
+    MONGODB_URI: ${env:MONGODB_URI}
+    OIDC_ISSUER: ${env:OIDC_ISSUER}
+    OIDC_CLIENT_ID: ${env:OIDC_CLIENT_ID}
+    OIDC_ADMIN_BASE_URL: ${env:OIDC_ADMIN_BASE_URL}
+    OIDC_ADMIN_CLIENT_ID: ${env:OIDC_ADMIN_CLIENT_ID}
+    OIDC_ADMIN_CLIENT_SECRET: ${env:OIDC_ADMIN_CLIENT_SECRET}
+    PAYMENT_PROVIDER: ${env:PAYMENT_PROVIDER, 'mock'}
+    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}
+    CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}
+
+functions:
+  api:
+    handler: dist-lambda/index.lambdaHandler
+    events:
+      - httpApi: "*"
+    timeout: 30
+    memorySize: 256
+
+package:
+  patterns:
+    - '!**'
+    - 'dist-lambda/**'

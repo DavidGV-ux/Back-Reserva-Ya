@@ -1,0 +1,358 @@
+{
+  "service": {
+    "service": "reserwaya-back",
+    "serviceObject": {
+      "name": "reserwaya-back"
+    },
+    "provider": {
+      "name": "aws",
+      "runtime": "nodejs22.x",
+      "region": "us-east-1",
+      "stage": "prod",
+      "environment": {
+        "NODE_ENV": "production",
+        "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+        "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+        "OIDC_CLIENT_ID": "reserwaya-web",
+        "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+        "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+        "OIDC_ADMIN_CLIENT_SECRET": "egr331OlIhpYaJiZNre4KmG1sRToCqMt2Xu0lYMwltAceUCScGiHPXjYcmbvIjeVX3uFeTTSn7fZ3MdKaFnWA3",
+        "PAYMENT_PROVIDER": "mock",
+        "WHATSAPP_PROVIDER": "mock",
+        "CANCELLATION_PROCESSING_FEE_RATE": "0"
+      },
+      "versionFunctions": true,
+      "compiledCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ApiLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/reserwaya-back-prod-api"
+            }
+          },
+          "IamRoleLambdaExecution": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": [
+                        "lambda.amazonaws.com"
+                      ]
+                    },
+                    "Action": [
+                      "sts:AssumeRole"
+                    ]
+                  }
+                ]
+              },
+              "Policies": [
+                {
+                  "PolicyName": {
+                    "Fn::Join": [
+                      "-",
+                      [
+                        "reserwaya-back",
+                        "prod",
+                        "lambda"
+                      ]
+                    ]
+                  },
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:CreateLogStream",
+                          "logs:CreateLogGroup",
+                          "logs:TagResource"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/reserwaya-back-prod*:*"
+                          }
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:PutLogEvents"
+                        ],
+                        "Resource": [
+                          {
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/reserwaya-back-prod*:*:*"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "Path": "/",
+              "RoleName": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    "reserwaya-back",
+                    "prod",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    "lambdaRole"
+                  ]
+                ]
+              }
+            }
+          },
+          "ApiLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+                "S3Key": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z/reserwaya-back.zip"
+              },
+              "Handler": "dist-lambda/index.lambdaHandler",
+              "Runtime": "nodejs22.x",
+              "FunctionName": "reserwaya-back-prod-api",
+              "MemorySize": 256,
+              "Timeout": 30,
+              "Environment": {
+                "Variables": {
+                  "NODE_ENV": "production",
+                  "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+                  "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+                  "OIDC_CLIENT_ID": "reserwaya-web",
+                  "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+                  "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+                  "OIDC_ADMIN_CLIENT_SECRET": "egr331OlIhpYaJiZNre4KmG1sRToCqMt2Xu0lYMwltAceUCScGiHPXjYcmbvIjeVX3uFeTTSn7fZ3MdKaFnWA3",
+                  "PAYMENT_PROVIDER": "mock",
+                  "WHATSAPP_PROVIDER": "mock",
+                  "CANCELLATION_PROCESSING_FEE_RATE": "0"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ApiLogGroup"
+            ]
+          },
+          "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ApiLambdaFunction"
+              },
+              "CodeSha256": "TVrM3xIwoZRP77peVaXAkVIMQTVyanajouIzyQoXK38="
+            }
+          },
+          "HttpApi": {
+            "Type": "AWS::ApiGatewayV2::Api",
+            "Properties": {
+              "Name": "prod-reserwaya-back",
+              "ProtocolType": "HTTP"
+            }
+          },
+          "HttpApiStage": {
+            "Type": "AWS::ApiGatewayV2::Stage",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "StageName": "$default",
+              "AutoDeploy": true,
+              "DefaultRouteSettings": {
+                "DetailedMetricsEnabled": false
+              }
+            }
+          },
+          "ApiLambdaPermissionHttpApi": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "ApiLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "apigateway.amazonaws.com",
+              "SourceArn": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":execute-api:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":",
+                    {
+                      "Ref": "HttpApi"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          },
+          "HttpApiIntegrationApi": {
+            "Type": "AWS::ApiGatewayV2::Integration",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "IntegrationType": "AWS_PROXY",
+              "IntegrationUri": {
+                "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"ApiLambdaPermissionHttpApi\"][\"Properties\"][\"FunctionName\"]"
+              },
+              "PayloadFormatVersion": "2.0",
+              "TimeoutInMillis": 30000
+            }
+          },
+          "HttpApiRouteDefault": {
+            "Type": "AWS::ApiGatewayV2::Route",
+            "Properties": {
+              "ApiId": {
+                "Ref": "HttpApi"
+              },
+              "RouteKey": "$default",
+              "Target": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    "integrations",
+                    {
+                      "Ref": "HttpApiIntegrationApi"
+                    }
+                  ]
+                ]
+              }
+            },
+            "DependsOn": "HttpApiIntegrationApi"
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-ServerlessDeploymentBucketName"
+            }
+          },
+          "ApiLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU"
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
+            }
+          },
+          "HttpApiId": {
+            "Description": "Id of the HTTP API",
+            "Value": {
+              "Ref": "HttpApi"
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-HttpApiId"
+            }
+          },
+          "HttpApiUrl": {
+            "Description": "URL of the HTTP API",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "https://",
+                  {
+                    "Ref": "HttpApi"
+                  },
+                  ".execute-api.",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ".",
+                  {
+                    "Ref": "AWS::URLSuffix"
+                  }
+                ]
+              ]
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-HttpApiUrl"
+            }
+          }
+        }
+      },
+      "vpc": {}
+    },
+    "pluginsData": {},
+    "functions": {
+      "api": {
+        "handler": "dist-lambda/index.lambdaHandler",
+        "events": [
+          {
+            "httpApi": "*",
+            "resolvedMethod": "ANY"
+          }
+        ],
+        "timeout": 30,
+        "memorySize": 256,
+        "name": "reserwaya-back-prod-api",
+        "package": {},
+        "memory": 256,
+        "runtime": "nodejs22.x",
+        "vpc": {},
+        "versionLogicalId": "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU"
+      }
+    },
+    "configValidationMode": "warn",
+    "serviceFilename": "serverless",
+    "initialServerlessConfig": {
+      "service": "reserwaya-back",
+      "frameworkVersion": ">=4.0.0",
+      "provider": {
+        "$ref": "$[\"service\"][\"provider\"]"
+      },
+      "functions": {
+        "$ref": "$[\"service\"][\"functions\"]"
+      },
+      "package": {
+        "patterns": [
+          "!**",
+          "dist-lambda/**"
+        ],
+        "artifactsS3KeyDirname": "serverless/reserwaya-back/prod/code-artifacts",
+        "deploymentBucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+        "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip",
+        "artifactDirectoryName": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z"
+      }
+    },
+    "appId": null,
+    "orgId": null,
+    "layers": {},
+    "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip"
+  },
+  "package": {
+    "artifactDirectoryName": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z",
+    "artifact": "reserwaya-back.zip"
+  }
+}
