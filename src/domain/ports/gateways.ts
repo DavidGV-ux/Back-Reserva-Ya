@@ -1,7 +1,37 @@
 import { PaymentTransaction } from '../entities/payments';
 
+export interface ProviderWebhookEnvelope {
+  raw?: string;
+  headers?: Record<string, unknown>;
+  body?: unknown;
+}
+
+export interface HostedChargeIntent {
+  mode: 'hosted';
+  publicKey: string;
+  amountInCents: number;
+  currency: string;
+  reference: string;
+  signatureIntegrity: string;
+}
+
+export interface DemoChargeIntent {
+  mode: 'demo';
+  amountInCents: number;
+  currency: string;
+  reference: string;
+}
+
+export type ChargeIntent = HostedChargeIntent | DemoChargeIntent;
+
 export interface PaymentGatewayProvider {
   readonly name: string;
+  buildChargeIntent(input: {
+    tenantId: string;
+    internalReference: string;
+    amount: number;
+    currency: string;
+  }): Promise<ChargeIntent>;
   createCharge(input: {
     tenantId: string;
     appointmentId: string;
@@ -18,8 +48,9 @@ export interface PaymentGatewayProvider {
     amount: number;
     currency: string;
     idempotencyKey: string;
+    metadata?: Record<string, unknown>;
   }): Promise<{ providerTransactionId: string; status: PaymentTransaction['status'] }>;
-  confirmEvent(event: unknown): Promise<{
+  confirmEvent(event: ProviderWebhookEnvelope | unknown): Promise<{
     provider: string;
     providerEventId: string;
     providerTransactionId?: string;

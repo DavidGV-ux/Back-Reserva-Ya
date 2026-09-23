@@ -17,7 +17,17 @@
         "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
         "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
         "OIDC_ADMIN_CLIENT_SECRET": "egr331OlIhpYaJiZNre4KmG1sRToCqMt2Xu0lYMwltAceUCScGiHPXjYcmbvIjeVX3uFeTTSn7fZ3MdKaFnWA3",
-        "PAYMENT_PROVIDER": "mock",
+        "PAYMENT_PROVIDER": "wompi",
+        "WOMPI_ENVIRONMENT": "prod",
+        "WOMPI_EVENTS_SECRET": "prod_events_xJB7EWxbxkR9hpdFUuRmq4KjNyeC2xCX",
+        "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+        "WOMPI_PRIVATE_KEY": "prv_prod_d2WdOn7KjPUOMqC3RWR4Gtxd33W6Rg88",
+        "WOMPI_INTEGRITY_SECRET": "prod_integrity_eDL72BbA5D2JIAfBtAUDVF9MHHVl58Ls",
+        "PAYU_API_KEY": "",
+        "PAYU_API_SECRET": "",
+        "PAYU_MERCHANT_ID": "",
+        "PAYU_ACCOUNT_ID": "",
+        "PAYU_BASE_URL": "https://api.payulatam.com",
         "WHATSAPP_PROVIDER": "mock",
         "CANCELLATION_PROCESSING_FEE_RATE": "0"
       },
@@ -30,6 +40,12 @@
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
               "LogGroupName": "/aws/lambda/reserwaya-back-prod-api"
+            }
+          },
+          "ExpireDashpendingDashpaymentsLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/reserwaya-back-prod-expire-pending-payments"
             }
           },
           "IamRoleLambdaExecution": {
@@ -115,7 +131,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/index.lambdaHandler",
               "Runtime": "nodejs22.x",
@@ -131,7 +147,17 @@
                   "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
                   "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                   "OIDC_ADMIN_CLIENT_SECRET": "egr331OlIhpYaJiZNre4KmG1sRToCqMt2Xu0lYMwltAceUCScGiHPXjYcmbvIjeVX3uFeTTSn7fZ3MdKaFnWA3",
-                  "PAYMENT_PROVIDER": "mock",
+                  "PAYMENT_PROVIDER": "wompi",
+                  "WOMPI_ENVIRONMENT": "prod",
+                  "WOMPI_EVENTS_SECRET": "prod_events_xJB7EWxbxkR9hpdFUuRmq4KjNyeC2xCX",
+                  "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                  "WOMPI_PRIVATE_KEY": "prv_prod_d2WdOn7KjPUOMqC3RWR4Gtxd33W6Rg88",
+                  "WOMPI_INTEGRITY_SECRET": "prod_integrity_eDL72BbA5D2JIAfBtAUDVF9MHHVl58Ls",
+                  "PAYU_API_KEY": "",
+                  "PAYU_API_SECRET": "",
+                  "PAYU_MERCHANT_ID": "",
+                  "PAYU_ACCOUNT_ID": "",
+                  "PAYU_BASE_URL": "https://api.payulatam.com",
                   "WHATSAPP_PROVIDER": "mock",
                   "CANCELLATION_PROCESSING_FEE_RATE": "0"
                 }
@@ -147,14 +173,108 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU": {
+          "ExpireDashpendingDashpaymentsLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+                "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+              },
+              "Handler": "dist-lambda/scheduled.expiredPaymentsHandler",
+              "Runtime": "nodejs22.x",
+              "FunctionName": "reserwaya-back-prod-expire-pending-payments",
+              "MemorySize": 256,
+              "Timeout": 60,
+              "Environment": {
+                "Variables": {
+                  "NODE_ENV": "production",
+                  "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+                  "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+                  "OIDC_CLIENT_ID": "reserwaya-web",
+                  "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+                  "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+                  "OIDC_ADMIN_CLIENT_SECRET": "egr331OlIhpYaJiZNre4KmG1sRToCqMt2Xu0lYMwltAceUCScGiHPXjYcmbvIjeVX3uFeTTSn7fZ3MdKaFnWA3",
+                  "PAYMENT_PROVIDER": "wompi",
+                  "WOMPI_ENVIRONMENT": "prod",
+                  "WOMPI_EVENTS_SECRET": "prod_events_xJB7EWxbxkR9hpdFUuRmq4KjNyeC2xCX",
+                  "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                  "WOMPI_PRIVATE_KEY": "prv_prod_d2WdOn7KjPUOMqC3RWR4Gtxd33W6Rg88",
+                  "WOMPI_INTEGRITY_SECRET": "prod_integrity_eDL72BbA5D2JIAfBtAUDVF9MHHVl58Ls",
+                  "PAYU_API_KEY": "",
+                  "PAYU_API_SECRET": "",
+                  "PAYU_MERCHANT_ID": "",
+                  "PAYU_ACCOUNT_ID": "",
+                  "PAYU_BASE_URL": "https://api.payulatam.com",
+                  "WHATSAPP_PROVIDER": "mock",
+                  "CANCELLATION_PROCESSING_FEE_RATE": "0"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "ExpireDashpendingDashpaymentsLogGroup"
+            ]
+          },
+          "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "TVrM3xIwoZRP77peVaXAkVIMQTVyanajouIzyQoXK38="
+              "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
+              },
+              "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+            }
+          },
+          "ExpireDashpendingDashpaymentsEventsRuleSchedule1": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+              "ScheduleExpression": "rate(5 minutes)",
+              "State": "ENABLED",
+              "Targets": [
+                {
+                  "Arn": {
+                    "Fn::GetAtt": [
+                      "ExpireDashpendingDashpaymentsLambdaFunction",
+                      "Arn"
+                    ]
+                  },
+                  "Id": "expire-pending-paymentsSchedule"
+                }
+              ]
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaPermissionEventsRuleSchedule1": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "ExpireDashpendingDashpaymentsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "events.amazonaws.com",
+              "SourceArn": {
+                "Fn::GetAtt": [
+                  "ExpireDashpendingDashpaymentsEventsRuleSchedule1",
+                  "Arn"
+                ]
+              }
             }
           },
           "HttpApi": {
@@ -260,10 +380,19 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU"
+              "Ref": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
             },
             "Export": {
               "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
             }
           },
           "HttpApiId": {
@@ -321,7 +450,23 @@
         "memory": 256,
         "runtime": "nodejs22.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersionl4P0LYPjYwaGug7ZHJxNhpycGFs2J6HgN33BzeYMU"
+        "versionLogicalId": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
+      },
+      "expire-pending-payments": {
+        "handler": "dist-lambda/scheduled.expiredPaymentsHandler",
+        "events": [
+          {
+            "schedule": "rate(5 minutes)"
+          }
+        ],
+        "timeout": 60,
+        "memorySize": 256,
+        "name": "reserwaya-back-prod-expire-pending-payments",
+        "package": {},
+        "memory": 256,
+        "runtime": "nodejs22.x",
+        "vpc": {},
+        "versionLogicalId": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
       }
     },
     "configValidationMode": "warn",
@@ -343,7 +488,7 @@
         "artifactsS3KeyDirname": "serverless/reserwaya-back/prod/code-artifacts",
         "deploymentBucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
         "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip",
-        "artifactDirectoryName": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z"
+        "artifactDirectoryName": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z"
       }
     },
     "appId": null,
@@ -352,7 +497,7 @@
     "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/reserwaya-back/prod/1789014626521-2026-09-10T04:30:26.521Z",
+    "artifactDirectoryName": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z",
     "artifact": "reserwaya-back.zip"
   }
 }

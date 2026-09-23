@@ -57,6 +57,7 @@ export interface AppointmentRepository {
   findById(tenantId: string, id: string): Promise<Appointment | null>;
   findByReference(tenantId: string, reference: string): Promise<Appointment | null>;
   findByIdempotencyKey(tenantId: string, key: string): Promise<Appointment | null>;
+  findPendingOlderThan(cutoffIso: string, limit?: number): Promise<Appointment[]>;
   findUpcomingByTenant(tenantId: string, from: string, to?: string): Promise<Appointment[]>;
   countByTenant(tenantId: string, since?: string): Promise<number>;
   findByProfessional(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;

@@ -1,6 +1,6 @@
 import { ConflictError, DomainError, NotFoundError, ValidationError } from '../../../shared/errors';
-import { Appointment, AvailabilityBlock, BookingIntent } from '../../../domain/entities';
-import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository } from '../../../domain/ports/repositories';
+import { Appointment, AvailabilityBlock, BookingIntent, ClientInfo } from '../../../domain/entities';
+import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository, PaymentTransactionRepository } from '../../../domain/ports/repositories';
 import { PaymentGatewayProvider } from '../../../domain/ports/gateways';
 import { UnitOfWork } from '../../../domain/ports/unit-of-work';
 import {
@@ -33,6 +33,7 @@ export class BookingUseCases {
       appointments: AppointmentRepository;
       timeSlots: TimeSlotRepository;
       availabilityBlocks: AvailabilityBlockRepository;
+      paymentTransactions: PaymentTransactionRepository;
     },
     private readonly uow: UnitOfWork,
     private readonly gateway: PaymentGatewayProvider,
@@ -55,6 +56,7 @@ export class BookingUseCases {
     };
     source?: 'web' | 'whatsapp' | 'admin';
     idempotencyKey?: string;
+    payment?: { type?: 'CARD' | 'NEQUI' | 'PSE'; token?: string; installments?: number };
     actor: string;
   }): Promise<BookingResult> {
     const tenant = await this.repos.tenants.findById(input.tenantId);
@@ -110,7 +112,12 @@ export class BookingUseCases {
     if (existing) {
       return {
         appointment: existing,
-        intent: { advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }), currency: tenant.currency, paymentReference: existing.paymentReference ?? '' },
+        intent: await this.buildIntent({
+          tenantId: input.tenantId,
+          advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
+          currency: tenant.currency,
+          paymentReference: existing.paymentReference ?? '',
+        }),
         replay: true,
       };
     }
@@ -130,15 +137,24 @@ export class BookingUseCases {
       throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
     }
 
-    const charge = await this.gateway.createCharge({
-      tenantId: input.tenantId,
-      appointmentId: '',
-      internalReference: paymentReference,
-      amount: advanceAmount,
-      currency: tenant.currency,
-      idempotencyKey,
-      metadata: { serviceId: service.id, professionalId: professional.id },
-    });
+    const source = input.payment?.token
+      ? await this.chargeCardSource({
+          tenantId: input.tenantId,
+          internalReference: paymentReference,
+          advanceAmount,
+          currency: tenant.currency,
+          idempotencyKey,
+          serviceId: service.id,
+          professionalId: professional.id,
+          clientInfo,
+          payment: input.payment,
+        })
+      : await this.hostedIntentSource({
+          tenantId: input.tenantId,
+          internalReference: paymentReference,
+          advanceAmount,
+          currency: tenant.currency,
+        });
 
     const now = new Date().toISOString();
     const appointment: Appointment = {
@@ -169,7 +185,7 @@ export class BookingUseCases {
           tenantId: input.tenantId,
           appointmentId: created.id,
           provider: this.gateway.name,
-          providerTransactionId: charge.providerTransactionId,
+          providerTransactionId: source.kind === 'charge' ? source.providerTransactionId : undefined,
           internalReference: paymentReference,
           operation: 'charge',
           amount: advanceAmount,
@@ -203,8 +219,104 @@ export class BookingUseCases {
 
     return {
       appointment: result,
-      intent: { advanceAmount, currency: tenant.currency, paymentReference, providerTransactionId: charge.providerTransactionId },
+      intent: {
+        advanceAmount,
+        currency: tenant.currency,
+        paymentReference,
+        ...(source.kind === 'charge'
+          ? { providerTransactionId: source.providerTransactionId }
+          : {
+              chargeMode: source.chargeMode,
+              publicKey: source.publicKey,
+              amountInCents: source.amountInCents,
+              signatureIntegrity: source.signatureIntegrity,
+            }),
+      },
       replay: false,
+    };
+  }
+
+  private async chargeCardSource(input: {
+    tenantId: string;
+    internalReference: string;
+    advanceAmount: number;
+    currency: string;
+    idempotencyKey: string;
+    serviceId: string;
+    professionalId: string;
+    clientInfo: ClientInfo;
+    payment: { type?: 'CARD' | 'NEQUI' | 'PSE'; token?: string; installments?: number };
+  }): Promise<{ kind: 'charge'; providerTransactionId: string }> {
+    const charge = await this.gateway.createCharge({
+      tenantId: input.tenantId,
+      appointmentId: '',
+      internalReference: input.internalReference,
+      amount: input.advanceAmount,
+      currency: input.currency,
+      idempotencyKey: input.idempotencyKey,
+      metadata: {
+        serviceId: input.serviceId,
+        professionalId: input.professionalId,
+        customerEmail: input.clientInfo.email,
+        customerIp: input.clientInfo.ip,
+        paymentMethodType: input.payment?.type ?? 'CARD',
+        token: input.payment.token,
+        installments: input.payment?.installments,
+      },
+    });
+    return { kind: 'charge', providerTransactionId: charge.providerTransactionId };
+  }
+
+  private async hostedIntentSource(input: {
+    tenantId: string;
+    internalReference: string;
+    advanceAmount: number;
+    currency: string;
+  }): Promise<
+    | { kind: 'intent'; chargeMode: 'hosted'; publicKey: string; amountInCents: number; signatureIntegrity: string }
+    | { kind: 'intent'; chargeMode: 'demo'; amountInCents: number; signatureIntegrity?: undefined; publicKey?: undefined }
+  > {
+    const intent = await this.gateway.buildChargeIntent({
+      tenantId: input.tenantId,
+      internalReference: input.internalReference,
+      amount: input.advanceAmount,
+      currency: input.currency,
+    });
+    if (intent.mode === 'hosted') {
+      return {
+        kind: 'intent',
+        chargeMode: 'hosted',
+        publicKey: intent.publicKey,
+        amountInCents: intent.amountInCents,
+        signatureIntegrity: intent.signatureIntegrity,
+      };
+    }
+    return { kind: 'intent', chargeMode: 'demo', amountInCents: intent.amountInCents };
+  }
+
+  private async buildIntent(input: {
+    tenantId: string;
+    advanceAmount: number;
+    currency: string;
+    paymentReference: string;
+  }): Promise<BookingIntent> {
+    const intent = await this.hostedIntentSource({
+      tenantId: input.tenantId,
+      internalReference: input.paymentReference,
+      advanceAmount: input.advanceAmount,
+      currency: input.currency,
+    });
+    const base: BookingIntent = {
+      advanceAmount: input.advanceAmount,
+      currency: input.currency,
+      paymentReference: input.paymentReference,
+    };
+    return {
+      ...base,
+      chargeMode: intent.chargeMode,
+      publicKey: intent.publicKey,
+      amountInCents: intent.amountInCents,
+      signatureIntegrity: intent.signatureIntegrity,
     };
   }
 
@@ -237,6 +349,9 @@ export class BookingUseCases {
 
     let refundTransactionId: string | undefined;
     if (decision.refundAmount > 0) {
+      const original = appointment.paymentReference
+        ? await this.repos.paymentTransactions.findByInternalReference(input.tenantId, appointment.paymentReference)
+        : null;
       const refund = await this.gateway.createRefund({
         tenantId: input.tenantId,
         appointmentId: appointment.id,
@@ -244,6 +359,9 @@ export class BookingUseCases {
         amount: decision.refundAmount,
         currency: tenant.currency,
         idempotencyKey: `refund-${appointment.id}`,
+        metadata: original?.providerTransactionId
+          ? { providerTransactionId: original.providerTransactionId }
+          : undefined,
       });
       refundTransactionId = refund.providerTransactionId;
     }

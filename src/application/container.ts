@@ -93,11 +93,16 @@ export class AppServices {
         appointments: deps.repos.appointments,
         timeSlots: deps.repos.timeSlots,
         availabilityBlocks: deps.repos.availabilityBlocks,
+        paymentTransactions: deps.repos.paymentTransactions,
       },
       deps.uow,
       deps.paymentGateway,
     );
-    this.payments = new PaymentsUseCases(deps.uow, deps.paymentGateway);
+    this.payments = new PaymentsUseCases(deps.uow, deps.paymentGateway, {
+      appointments: deps.repos.appointments,
+      tenants: deps.repos.tenants,
+      paymentTransactions: deps.repos.paymentTransactions,
+    });
     this.history = new HistoryUseCases({
       tenants: deps.repos.tenants,
       appointments: deps.repos.appointments,

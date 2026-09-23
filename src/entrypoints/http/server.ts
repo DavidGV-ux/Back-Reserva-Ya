@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -10,10 +10,19 @@ import { webhookRouter } from './routes/webhooks.routes';
 import { onboardingRouter } from './routes/onboarding.routes';
 import { errorHandler, notFoundHandler } from './middleware/errors';
 
+export interface RawBodyRequest extends Request {
+  rawBody?: string;
+}
+
+function captureRawBody(req: Request, _res: Response, buf: Buffer): void {
+  (req as RawBodyRequest).rawBody = buf.toString('utf8');
+}
+
 export async function buildApp(boot: BootContext) {
   const app = express();
   app.use(cors());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '1mb', verify: captureRawBody }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb', verify: captureRawBody }));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', ts: new Date().toISOString() });

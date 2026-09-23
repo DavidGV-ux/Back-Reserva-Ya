@@ -33,6 +33,18 @@ export class AppointmentMongoRepository implements AppointmentRepository {
     return doc ? appointmentToDomain(doc) : null;
   }
 
+  async findPendingOlderThan(cutoffIso: string, limit = 500): Promise<Appointment[]> {
+    const docs = await this.collection
+      .find(
+        { status: 'pending_payment', created_at: { $lt: new Date(cutoffIso) } },
+        { session: this.session },
+      )
+      .sort({ created_at: 1 })
+      .limit(limit)
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
   async findUpcomingByTenant(tenantId: string, from: string, to?: string): Promise<Appointment[]> {
     const filter: Record<string, unknown> = {
       tenant_id: tenantId,

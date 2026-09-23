@@ -8,7 +8,7 @@ import { ensureExtraIndexes } from '../../src/infrastructure/persist/mongo/repos
 import { AppServices } from '../../src/application/container';
 import { MockPaymentGateway } from '../../src/infrastructure/integrations/payments/mock-payment';
 import { MockNotificationGateway } from '../../src/infrastructure/integrations/notifications/mock-notifications';
-import { IdentityGateway, IdentityUser } from '../../src/domain/ports/gateways';
+import { IdentityGateway, IdentityUser, PaymentGatewayProvider, NotificationGateway } from '../../src/domain/ports/gateways';
 
 export class NoopIdentityGateway implements IdentityGateway {
   readonly provider = 'noop';
@@ -41,10 +41,17 @@ export interface TestDb {
   stop: () => Promise<void>;
 }
 
-let shared: TestDb | null = null;
+export interface TestDbOptions {
+  paymentGateway?: PaymentGatewayProvider;
+  notificationGateway?: NotificationGateway;
+}
 
-export async function testDb(): Promise<TestDb> {
-  if (shared) return shared;
+const cache = new Map<string, TestDb>();
+
+export async function testDb(options?: TestDbOptions): Promise<TestDb> {
+  const key = `${options?.paymentGateway?.name ?? 'mock'}-${options?.notificationGateway?.channel ?? 'whatsapp'}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
 
   const uri = process.env.MONGODB_URI_TEST ?? 'mongodb://localhost:27017/reservaya_test';
   const client = new MongoClient(uri);
@@ -60,22 +67,23 @@ export async function testDb(): Promise<TestDb> {
   const services = new AppServices({
     repos,
     uow,
-    paymentGateway: new MockPaymentGateway(),
-    notificationGateway: new MockNotificationGateway(),
+    paymentGateway: options?.paymentGateway ?? new MockPaymentGateway(),
+    notificationGateway: options?.notificationGateway ?? new MockNotificationGateway(),
     identity: new NoopIdentityGateway(),
   });
 
-  shared = {
+  const ctx: TestDb = {
     client,
     db,
     repos,
     services,
     stop: async () => {
       await client.close();
-      shared = null;
+      cache.delete(key);
     },
   };
-  return shared;
+  cache.set(key, ctx);
+  return ctx;
 }
 
 export async function applySchema(db: Db): Promise<void> {

@@ -46,6 +46,7 @@ export interface Appointment {
   commissionRateSnapshot: number;
   planIdSnapshot: string;
   idempotencyKey?: string;
+  createdAt?: string;
   source: AppointmentSource;
   paymentReference?: string;
   latestPaymentTransactionId?: string;
@@ -64,4 +65,8 @@ export interface BookingIntent {
   currency: string;
   paymentReference: string;
   providerTransactionId?: string;
+  chargeMode?: 'hosted' | 'demo';
+  publicKey?: string;
+  amountInCents?: number;
+  signatureIntegrity?: string;
 }

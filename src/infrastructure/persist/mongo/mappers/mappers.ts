@@ -129,6 +129,7 @@ export function appointmentToDomain(doc: Doc): Appointment {
     commissionRateSnapshot: moneyToNumber(doc.commission_rate_snapshot ?? 0),
     planIdSnapshot: String(doc.plan_code_snapshot ?? ''),
     idempotencyKey: doc.idempotency_key as string | undefined,
+    createdAt: doc.created_at ? dateToIso(doc.created_at) : undefined,
     source: (doc.source as Appointment['source']) ?? 'web',
     paymentReference: doc.payment_reference as string | undefined,
     latestPaymentTransactionId: doc.latest_payment_transaction_id

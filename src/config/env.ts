@@ -20,6 +20,18 @@ export const env = {
   paymentProvider: required('PAYMENT_PROVIDER', 'mock'),
   whatsappProvider: required('WHATSAPP_PROVIDER', 'mock'),
   cancellationProcessingFeeRate: Number(process.env.CANCELLATION_PROCESSING_FEE_RATE ?? 0),
+  wompiEnvironment: ((process.env.WOMPI_ENVIRONMENT && process.env.WOMPI_ENVIRONMENT.trim().length > 0
+    ? process.env.WOMPI_ENVIRONMENT
+    : (process.env.NODE_ENV === 'production' ? 'prod' : 'test')) as 'test' | 'prod'),
+  wompiEventsSecret: process.env.WOMPI_EVENTS_SECRET ?? '',
+  wompiPublicKey: process.env.WOMPI_PUBLIC_KEY ?? '',
+  wompiPrivateKey: process.env.WOMPI_PRIVATE_KEY ?? '',
+  wompiIntegritySecret: process.env.WOMPI_INTEGRITY_SECRET ?? '',
+  payuApiKey: process.env.PAYU_API_KEY ?? '',
+  payuApiSecret: process.env.PAYU_API_SECRET ?? '',
+  payuMerchantId: process.env.PAYU_MERCHANT_ID ?? '',
+  payuAccountId: process.env.PAYU_ACCOUNT_ID ?? '',
+  payuBaseUrl: process.env.PAYU_BASE_URL ?? 'https://api.payulatam.com',
   seedAdmin: process.env.ADMIN_USER_ID ?? '',
   seedOwnerKeycloakId: process.env.SEED_OWNER_KEYCLOAK_ID ?? '',
   seedProfessionalKeycloakId: process.env.SEED_PROFESSIONAL_KEYCLOAK_ID ?? '',

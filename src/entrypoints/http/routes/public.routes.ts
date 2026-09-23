@@ -21,6 +21,13 @@ const createAppointmentSchema = z.object({
   }),
   source: z.enum(['web', 'whatsapp', 'admin']).optional(),
   idempotencyKey: z.string().optional(),
+  payment: z
+    .object({
+      type: z.enum(['CARD', 'NEQUI', 'PSE']).optional(),
+      token: z.string().optional(),
+      installments: z.number().int().positive().optional(),
+    })
+    .optional(),
 });
 
 export function publicRouter(services: AppServices, verifier: KeycloakVerifier): Router {
@@ -122,6 +129,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         },
         source: body.source,
         idempotencyKey: body.idempotencyKey,
+        payment: body.payment,
         actor: req.principal?.sub ?? 'web-anonymous',
       });
       if (clientId && result.appointment.tenantId === param(req, 'tenantId')) {

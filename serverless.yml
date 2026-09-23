@@ -15,6 +15,16 @@ provider:
     OIDC_ADMIN_CLIENT_ID: ${env:OIDC_ADMIN_CLIENT_ID}
     OIDC_ADMIN_CLIENT_SECRET: ${env:OIDC_ADMIN_CLIENT_SECRET}
     PAYMENT_PROVIDER: ${env:PAYMENT_PROVIDER, 'mock'}
+    WOMPI_ENVIRONMENT: ${env:WOMPI_ENVIRONMENT, 'test'}
+    WOMPI_EVENTS_SECRET: ${env:WOMPI_EVENTS_SECRET, ''}
+    WOMPI_PUBLIC_KEY: ${env:WOMPI_PUBLIC_KEY, ''}
+    WOMPI_PRIVATE_KEY: ${env:WOMPI_PRIVATE_KEY, ''}
+    WOMPI_INTEGRITY_SECRET: ${env:WOMPI_INTEGRITY_SECRET, ''}
+    PAYU_API_KEY: ${env:PAYU_API_KEY, ''}
+    PAYU_API_SECRET: ${env:PAYU_API_SECRET, ''}
+    PAYU_MERCHANT_ID: ${env:PAYU_MERCHANT_ID, ''}
+    PAYU_ACCOUNT_ID: ${env:PAYU_ACCOUNT_ID, ''}
+    PAYU_BASE_URL: ${env:PAYU_BASE_URL, 'https://api.payulatam.com'}
     WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}
     CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}
 
@@ -24,6 +34,13 @@ functions:
     events:
       - httpApi: "*"
     timeout: 30
+    memorySize: 256
+
+  expire-pending-payments:
+    handler: dist-lambda/scheduled.expiredPaymentsHandler
+    events:
+      - schedule: rate(5 minutes)
+    timeout: 60
     memorySize: 256
 
 package:
