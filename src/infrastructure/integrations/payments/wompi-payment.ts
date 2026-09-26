@@ -254,6 +254,31 @@ export class WompiPaymentGateway implements PaymentGatewayProvider {
     return { providerTransactionId: String(data.id), status: 'pending' };
   }
 
+  async fetchChargeStatus(input: {
+    internalReference: string;
+  }): Promise<{
+    providerTransactionId: string;
+    status: PaymentTransaction['status'];
+    amount: number;
+    currency: string;
+  } | null> {
+    const privateKey = this.config.privateKey;
+    if (!privateKey) throw new ValidationError('Wompi private key is not configured (WOMPI_PRIVATE_KEY)');
+    const json = await this.request('GET', `/transactions?reference=${encodeURIComponent(input.internalReference)}`, {
+      bearer: privateKey,
+    });
+    const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : [];
+    const tx = data.find((t) => String(t.reference ?? '') === input.internalReference);
+    if (!tx?.id) return null;
+    const amountCents = Number(tx.amount_in_cents ?? 0);
+    return {
+      providerTransactionId: String(tx.id),
+      status: CHARGE_STATUS_MAP[String(tx.status ?? '')] ?? 'pending',
+      amount: Math.round((amountCents / 100) * 100) / 100,
+      currency: String(tx.currency ?? 'COP').toUpperCase() as 'COP' | 'USD',
+    };
+  }
+
   async confirmEvent(event: ProviderWebhookEnvelope | unknown): Promise<{
     provider: string;
     providerEventId: string;

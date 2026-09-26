@@ -5,6 +5,7 @@ import { LedgerEntry, PaymentTransaction } from '../entities/payments';
 import { Notification } from '../entities/notifications';
 import { Plan, Tenant } from '../entities/tenant';
 import { PlatformUser, TenantUser } from '../entities/notifications';
+import { UserProfile } from '../entities/profile';
 import { AppointmentStatus, SlotOccupation } from '../entities/types';
 
 export interface Page<T> {
@@ -59,10 +60,13 @@ export interface AppointmentRepository {
   findByIdempotencyKey(tenantId: string, key: string): Promise<Appointment | null>;
   findPendingOlderThan(cutoffIso: string, limit?: number): Promise<Appointment[]>;
   findUpcomingByTenant(tenantId: string, from: string, to?: string): Promise<Appointment[]>;
+  listByTenant(tenantId: string, from?: string, to?: string): Promise<Appointment[]>;
   countByTenant(tenantId: string, since?: string): Promise<number>;
   findByProfessional(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
+  findOverlapping(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
+  findOccupiedIds(tenantId: string): Promise<string[]>;
   findHistoryByClient(
-    input: { tenantId: string; clientId?: string; phone?: string; email?: string },
+    input: { tenantId: string; clientId?: string; phone?: string; email?: string; documentId?: string },
   ): Promise<Appointment[]>;
   create(appointment: Appointment, actor: string): Promise<Appointment>;
   updateStatus(
@@ -87,6 +91,7 @@ export interface AvailabilityBlockRepository {
     from: string,
     to: string,
   ): Promise<AvailabilityBlock[]>;
+  findActiveIds(tenantId: string): Promise<string[]>;
   create(block: AvailabilityBlock, actor: string): Promise<AvailabilityBlock>;
   updateStatus(tenantId: string, id: string, expectedVersion: number, status: 'active' | 'cancelled', actor: string): Promise<AvailabilityBlock>;
 }
@@ -102,6 +107,11 @@ export interface TimeSlotRepository {
   removeForBlock(tenantId: string, blockId: string): Promise<void>;
   removeForAppointment(tenantId: string, appointmentId: string): Promise<void>;
   insertSlotIfFree(slot: TimeSlot): Promise<boolean>;
+  removeOrphans(
+    tenantId: string,
+    occupiedAppointmentIds: string[],
+    activeBlockIds: string[],
+  ): Promise<{ removed: number }>;
   occupationByRange(
     tenantId: string,
     professionalIds: string[],
@@ -112,7 +122,7 @@ export interface TimeSlotRepository {
 
 export interface PaymentTransactionRepository {
   findByProviderEvent(provider: string, eventId: string): Promise<PaymentTransaction | null>;
-  findByInternalReference(tenantId: string, reference: string): Promise<PaymentTransaction | null>;
+  findByInternalReference(tenantId: string | undefined, reference: string): Promise<PaymentTransaction | null>;
   create(transaction: PaymentTransaction, actor: string): Promise<PaymentTransaction>;
   updateStatus(
     tenantId: string,
@@ -148,6 +158,13 @@ export interface TenantUserRepository {
 export interface PlatformUserRepository {
   findByKeycloakUserId(keycloakUserId: string): Promise<PlatformUser | null>;
   create(user: PlatformUser): Promise<void>;
+}
+
+export interface UserProfileRepository {
+  findByKeycloakUserId(keycloakUserId: string): Promise<UserProfile | null>;
+  findByPhone(phoneDigits: string): Promise<UserProfile | null>;
+  upsert(profile: UserProfile): Promise<UserProfile>;
+  deleteByKeycloakUserId(keycloakUserId: string): Promise<boolean>;
 }
 
 export interface AuditLogRepository {

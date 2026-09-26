@@ -85,6 +85,9 @@ export async function ensureExtraIndexes(db: import('mongodb').Db): Promise<void
   );
   const plans = db.collection('plans');
   await plans.createIndex({ code: 1 }, { unique: true, name: 'uq_plans_code' });
+  const profiles = db.collection('user_profiles');
+  await profiles.createIndex({ keycloak_user_id: 1 }, { unique: true, name: 'uq_user_profiles_keycloak' });
+  await profiles.createIndex({ phone_digits: 1 }, { unique: true, name: 'uq_user_profiles_phone' });
 }
 
 export { COLLECTIONS };

@@ -20,11 +20,11 @@ export class PaymentTransactionMongoRepository implements PaymentTransactionRepo
     return doc ? paymentToDomain(doc) : null;
   }
 
-  async findByInternalReference(tenantId: string, reference: string): Promise<PaymentTransaction | null> {
-    const doc = await this.collection.findOne(
-      { tenant_id: tenantId, internal_reference: reference },
-      { session: this.session },
-    );
+  async findByInternalReference(tenantId: string | undefined, reference: string): Promise<PaymentTransaction | null> {
+    const filter = tenantId
+      ? { tenant_id: tenantId, internal_reference: reference }
+      : { internal_reference: reference };
+    const doc = await this.collection.findOne(filter, { session: this.session });
     return doc ? paymentToDomain(doc) : null;
   }
 

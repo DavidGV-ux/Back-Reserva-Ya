@@ -1,4 +1,9 @@
-import { WorkInterval, WeeklySchedule } from '../entities/catalog';
+import {
+  DEFAULT_WEEK_SCHEDULE,
+  WEEK_DAY_KEYS,
+  WorkInterval,
+  WeeklySchedule,
+} from '../entities/catalog';
 import { SlotReason, SlotView } from '../entities/availability';
 
 export interface ShiftInterval {
@@ -26,8 +31,15 @@ export function weeklyScheduleForDay(schedule: WeeklySchedule, weekday: number):
     'saturday',
   ][weekday] as keyof WeeklySchedule;
   const intervals: WorkInterval[] = schedule[key] ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (intervals as any[]).length ? intervals : [];
+  if (intervals.length) return intervals;
+  // Un profesional sin ningún intervalo configurado (p.ej. dado de alta sin horario)
+  // opera con los horarios por defecto: ningún negocio queda sin disponibilidad por accidente.
+  const hasAnyInterval = WEEK_DAY_KEYS.some((day) => (schedule[day] ?? []).length > 0);
+  if (!hasAnyInterval) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return DEFAULT_WEEK_SCHEDULE[key] as any[];
+  }
+  return [];
 }
 
 export function buildSlots(params: {

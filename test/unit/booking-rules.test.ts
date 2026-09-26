@@ -34,8 +34,16 @@ describe('clientInfoFrom', () => {
     ).toThrow(/HabeasData/);
   });
   it('records acceptedAt when consent given', () => {
-    const info = clientInfoFrom({ name: 'Ana', habeasDataConsent: true, phone: '+57' });
+    const info = clientInfoFrom({ name: 'Ana', habeasDataConsent: true, phone: '+573001234567' });
     expect(info.habeasDataAcceptedAt).toBeTruthy();
-    expect(info.phone).toBe('+57');
+    expect(info.phone).toBe('+573001234567');
+  });
+  it('drops invalid phone instead of storing garbage', () => {
+    const info = clientInfoFrom({ name: 'Ana', habeasDataConsent: true, phone: '+57' });
+    expect(info.phone).toBeUndefined();
+  });
+  it('normalizes a local Colombian phone to E.164', () => {
+    const info = clientInfoFrom({ name: 'Ana', habeasDataConsent: true, phone: '3001234567' });
+    expect(info.phone).toBe('+573001234567');
   });
 });

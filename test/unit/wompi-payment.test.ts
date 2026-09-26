@@ -167,6 +167,40 @@ describe('WompiPaymentGateway.buildChargeIntent', () => {
   });
 });
 
+describe('WompiPaymentGateway.fetchChargeStatus', () => {
+  function statusGateway(data: Record<string, unknown>[]) {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ data }), { status: 200 }));
+    const g = new WompiPaymentGateway({
+      eventsSecret: 's',
+      environment: 'test',
+      privateKey: 'prv_test_k',
+      integritySecret: 'inte_sec',
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+    return { g, fetcher };
+  }
+
+  it('maps an APPROVED transaction by reference', async () => {
+    const { g, fetcher } = statusGateway([
+      { id: 'wtx-1', reference: 'RSV-1', status: 'APPROVED', amount_in_cents: 1200000, currency: 'COP' },
+    ]);
+    const result = await g.fetchChargeStatus({ internalReference: 'RSV-1' });
+    expect(result).toEqual({ providerTransactionId: 'wtx-1', status: 'approved', amount: 12000, currency: 'COP' });
+    expect(String((fetcher.mock.calls[0] as [string])[0])).toContain('/transactions?reference=RSV-1');
+  });
+
+  it('maps a DECLINED transaction and returns null when absent', async () => {
+    const { g } = statusGateway([{ id: 'wtx-2', reference: 'RSV-2', status: 'DECLINED', amount_in_cents: 500000, currency: 'COP' }]);
+    expect(await g.fetchChargeStatus({ internalReference: 'RSV-2' })).toMatchObject({ status: 'declined' });
+    expect(await g.fetchChargeStatus({ internalReference: 'RSV-MISSING' })).toBeNull();
+  });
+
+  it('treats unknown statuses as pending (no optimistic decline)', async () => {
+    const { g } = statusGateway([{ id: 'wtx-3', reference: 'RSV-3', status: 'SOFT', amount_in_cents: 100000, currency: 'COP' }]);
+    expect(await g.fetchChargeStatus({ internalReference: 'RSV-3' })).toMatchObject({ status: 'pending' });
+  });
+});
+
 describe('WompiPaymentGateway.createCharge', () => {
   function networkGateway() {
     const fetcher = vi.fn(async (url: string, init?: RequestInit) => {

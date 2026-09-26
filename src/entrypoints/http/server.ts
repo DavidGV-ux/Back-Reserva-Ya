@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { BootContext, bootstrap } from '../../infrastructure/bootstrap';
 import { publicRouter } from './routes/public.routes';
+import { publicPaymentsRouter } from './routes/public-payments.routes';
 import { rolesRouter } from './routes/roles.routes';
 import { adminRouter } from './routes/admin.routes';
 import { webhookRouter } from './routes/webhooks.routes';
 import { onboardingRouter } from './routes/onboarding.routes';
+import { whatsappRouter } from './routes/whatsapp.routes';
 import { errorHandler, notFoundHandler } from './middleware/errors';
 
 export interface RawBodyRequest extends Request {
@@ -29,10 +31,12 @@ export async function buildApp(boot: BootContext) {
   });
 
   app.use('/api/public', publicRouter(boot.services, boot.verifier));
+  app.use('/api/public', publicPaymentsRouter(boot.services));
   app.use('/api/onboarding', onboardingRouter(boot.services, boot.verifier));
   app.use('/api', rolesRouter(boot.services, boot.verifier));
   app.use('/api/admin', adminRouter(boot.services, boot.verifier));
   app.use('/api/webhooks', webhookRouter(boot.services));
+  app.use('/api/public/whatsapp', whatsappRouter(boot.services, boot.verifier));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

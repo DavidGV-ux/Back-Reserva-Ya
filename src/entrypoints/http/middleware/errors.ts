@@ -66,6 +66,7 @@ function statusFor(code: string): number {
     case 'APPOINTMENT_TERMINAL':
     case 'KEYCLOAK_USER_LINKED':
     case 'PLAN_EXISTS':
+    case 'TENANT_ALREADY_HAS_OWNER':
       return 409;
     case 'VALIDATION_ERROR':
       return 422;

@@ -4,6 +4,7 @@ import { ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
 import { optionalAuth } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
+import { publishAppointmentCreated } from '../whatsapp-events';
 import { z } from 'zod';
 import { param } from './params';
 
@@ -16,6 +17,7 @@ const createAppointmentSchema = z.object({
     name: z.string().min(1),
     phone: z.string().optional(),
     email: z.string().optional(),
+    documentId: z.string().optional(),
     habeasDataConsent: z.literal(true),
     habeasDataConsentAt: z.string().optional(),
   }),
@@ -122,6 +124,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
           name: body.clientInfo.name,
           phone: body.clientInfo.phone,
           email: body.clientInfo.email,
+          documentId: body.clientInfo.documentId,
           habeasDataConsent: body.clientInfo.habeasDataConsent,
           habeasDataConsentAt: body.clientInfo.habeasDataConsentAt,
           ip: req.ip,
@@ -134,6 +137,21 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
       });
       if (clientId && result.appointment.tenantId === param(req, 'tenantId')) {
         await services.tenants.ensureClientMembership(result.appointment.tenantId, clientId);
+      }
+      if (!result.replay) {
+        void (async () => {
+          const tenant = await services.tenants
+            .getTenantById(result.appointment.tenantId)
+            .catch(() => undefined);
+          const professionals = await services.catalog
+            .listProfessionals(result.appointment.tenantId)
+            .catch(() => []);
+          await publishAppointmentCreated({
+            appointment: result.appointment,
+            tenant,
+            professional: professionals.find((p) => p.id === result.appointment.professionalId),
+          });
+        })();
       }
       res.status(result.replay ? 200 : 201).json(result);
     }),
@@ -149,6 +167,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         clientId: req.principal?.sub ?? (typeof req.query.clientId === 'string' ? req.query.clientId : undefined),
         phone: typeof req.query.phone === 'string' ? req.query.phone : undefined,
         email: typeof req.query.email === 'string' ? req.query.email : undefined,
+        documentId: typeof req.query.documentId === 'string' ? req.query.documentId : undefined,
       });
       res.json(appointments);
     }),
@@ -161,6 +180,17 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         param(req, 'tenantId'),
         param(req, 'appointmentId'),
       );
+      if (appointment.status === 'pending_payment' && appointment.paymentStatus === 'pending') {
+        const reconciled = await services.payments.reconcilePayment({
+          tenantId: param(req, 'tenantId'),
+          appointmentId: param(req, 'appointmentId'),
+          actor: 'web-anonymous',
+        });
+        if (reconciled.appointment) {
+          res.json(reconciled.appointment);
+          return;
+        }
+      }
       res.json(appointment);
     }),
   );

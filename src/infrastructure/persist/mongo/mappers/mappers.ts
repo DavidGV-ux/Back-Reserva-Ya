@@ -56,6 +56,8 @@ export function tenantToDomain(doc: Doc): Tenant {
     timezone: String(doc.timezone ?? 'America/Bogota'),
     currency: (doc.currency as Tenant['currency']) ?? 'COP',
     country: doc.country as string | undefined,
+    category: (doc.category as Tenant['category']) ?? 'other',
+    city: doc.city as string | undefined,
     logoUrl: doc.logo_url as string | undefined,
     coverUrl: doc.cover_url as string | undefined,
     address: doc.address as string | undefined,
@@ -106,6 +108,7 @@ export function professionalToDomain(doc: Doc): Professional {
     schedule: scheduleToDomain(doc),
     active: Boolean(doc.active),
     keycloakUserId: doc.keycloak_user_id as string | undefined,
+    phone: doc.phone as string | undefined,
     version: intToNumber(doc.version ?? 1),
   };
 }
@@ -140,6 +143,7 @@ export function appointmentToDomain(doc: Doc): Appointment {
       name: String(client.name ?? ''),
       phone: client.phone as string | undefined,
       email: client.email as string | undefined,
+      documentId: client.document_id as string | undefined,
       habeasDataAcceptedAt: client.habeas_data_accepted_at ? dateToIso(client.habeas_data_accepted_at) : '',
       ip: client.ip as string | undefined,
       userAgent: client.user_agent as string | undefined,

@@ -1,5 +1,11 @@
-import { ConflictError, NotFoundError, ValidationError } from '../../../shared/errors';
-import { Professional, Service, WeeklySchedule } from '../../../domain/entities/catalog';
+import { NotFoundError, ValidationError } from '../../../shared/errors';
+import {
+  defaultWeeklySchedule,
+  normalizeWeeklySchedule,
+  Professional,
+  Service,
+  WeeklySchedule,
+} from '../../../domain/entities/catalog';
 import { AuditLogRepository, ProfessionalRepository, ServiceRepository } from '../../../domain/ports/repositories';
 import { hexId, uuid } from '../../../shared/id';
 
@@ -139,13 +145,9 @@ export class CatalogUseCases {
       if (!svc) throw new NotFoundError('Service', sid);
     }
     if (input.professional.keycloakUserId) {
-      const existing = await this.repos.professionals.findByKeycloakUserId(
-        input.tenantId,
-        input.professional.keycloakUserId,
+      throw new ValidationError(
+        'keycloak_user_id is not allowed: link a user account via /professionals/invite',
       );
-      if (existing) {
-        throw new ConflictError('KEYCLOAK_USER_LINKED', 'keycloak_user_id already linked to a professional in this tenant');
-      }
     }
     const professional: Professional = {
       id: hexId(),
@@ -154,7 +156,9 @@ export class CatalogUseCases {
       title: input.professional.title,
       avatarUrl: input.professional.avatarUrl,
       serviceIds,
-      schedule: input.professional.schedule ?? emptyWeeklySchedule(),
+      schedule: input.professional.schedule
+        ? normalizeWeeklySchedule(input.professional.schedule)
+        : defaultWeeklySchedule(),
       active: true,
       keycloakUserId: input.professional.keycloakUserId,
       version: 1,
@@ -181,7 +185,11 @@ export class CatalogUseCases {
   }): Promise<Professional> {
     const current = await this.repos.professionals.findById(input.tenantId, input.id);
     if (!current) throw new NotFoundError('Professional', input.id);
-    const updated: Professional = { ...current, ...input.patch };
+    const patch = { ...input.patch };
+    if (patch.schedule) {
+      patch.schedule = normalizeWeeklySchedule(patch.schedule);
+    }
+    const updated: Professional = { ...current, ...patch };
     const saved = await this.repos.professionals.update(updated, input.expectedVersion, input.actor);
     await this.repos.audit.record({
       eventId: uuid(),
@@ -204,10 +212,4 @@ export class CatalogUseCases {
   }): Promise<void> {
     await this.repos.professionals.softDelete(input.tenantId, input.id, input.expectedVersion, input.actor);
   }
-}
-
-export function emptyWeeklySchedule(): WeeklySchedule {
-  return {
-    monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
-  };
 }

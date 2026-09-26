@@ -1,5 +1,22 @@
 import { BookingStatus, Currency, LanguageCode } from './types';
 
+export const TENANT_CATEGORIES = [
+  'beauty',
+  'health',
+  'pets',
+  'food',
+  'bars_cafes',
+  'leisure',
+  'sports',
+  'education',
+  'home',
+  'shopping',
+  'events',
+  'other',
+] as const;
+
+export type TenantCategory = (typeof TENANT_CATEGORIES)[number];
+
 export interface AuditFields {
   version: number;
   createdBy: string;
@@ -45,6 +62,8 @@ export interface Tenant {
   timezone: string;
   currency: Currency;
   country?: string;
+  category?: TenantCategory;
+  city?: string;
   logoUrl?: string;
   coverUrl?: string;
   address?: string;

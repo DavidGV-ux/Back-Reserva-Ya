@@ -1,5 +1,6 @@
-import { NotFoundError, ValidationError } from '../../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { Appointment, AvailabilityBlock, LedgerEntry, Tenant, TenantRole } from '../../../domain/entities';
+import { AppointmentStatus } from '../../../domain/entities/types';
 import {
   AppointmentRepository,
   AvailabilityBlockRepository,
@@ -27,6 +28,17 @@ export interface ProfessionalAgenda {
   appointments: Appointment[];
   blocks: AvailabilityBlock[];
 }
+
+export interface OwnerAppointmentRow {
+  appointment: Appointment;
+  advanceAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  currency: string;
+}
+
+const TERMINAL_STATUSES: readonly AppointmentStatus[] = ['cancelled', 'expired', 'completed', 'no_show'];
+const STATUS_FOR_OWNER: readonly AppointmentStatus[] = ['completed', 'no_show'];
 
 export class DashboardUseCases {
   constructor(
@@ -111,6 +123,77 @@ export class DashboardUseCases {
       professionalId,
       appointments: appointments.sort((a, b) => a.startTime.localeCompare(b.startTime)),
       blocks: blocks.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    };
+  }
+
+  async ownerAppointments(input: {
+    tenantId: string;
+    from?: string;
+    to?: string;
+  }): Promise<{ tenant: Tenant; rows: OwnerAppointmentRow[] }> {
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const from = input.from ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const to = input.to ?? new Date(Date.now() + 60 * 86_400_000).toISOString();
+    const appointments = await this.repos.appointments.listByTenant(input.tenantId, from, to);
+
+    const advancePct = tenant.settings.advancePaymentPercentage;
+    const rows: OwnerAppointmentRow[] = appointments.map((appointment) => {
+      const advanceAmount =
+        Math.round((appointment.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
+      const paidAmount =
+        appointment.paymentStatus === 'approved' && appointment.status !== 'cancelled'
+          ? advanceAmount
+          : 0;
+      return {
+        appointment,
+        advanceAmount,
+        paidAmount,
+        dueAmount: Math.round((appointment.serviceSnapshot.price - paidAmount) * 100) / 100,
+        currency: appointment.serviceSnapshot.currency,
+      };
+    });
+
+    return { tenant, rows };
+  }
+
+  async ownerSetStatus(input: {
+    tenantId: string;
+    appointmentId: string;
+    status: AppointmentStatus;
+    version: number;
+    actor: string;
+  }): Promise<OwnerAppointmentRow> {
+    if (!STATUS_FOR_OWNER.includes(input.status)) {
+      throw new ValidationError(`owner can only set status to ${STATUS_FOR_OWNER.join(', ')}`);
+    }
+    const appointment = await this.repos.appointments.findById(input.tenantId, input.appointmentId);
+    if (!appointment) throw new NotFoundError('Appointment', input.appointmentId);
+    if (TERMINAL_STATUSES.includes(appointment.status)) {
+      throw new ConflictError('APPOINTMENT_TERMINAL', `appointment is already ${appointment.status}`);
+    }
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const updated = await this.repos.appointments.updateStatus(
+      input.tenantId,
+      input.appointmentId,
+      input.version,
+      { status: input.status },
+      input.actor,
+    );
+
+    const advancePct = tenant.settings.advancePaymentPercentage;
+    const advanceAmount = Math.round((updated.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
+    const paidAmount =
+      updated.paymentStatus === 'approved' && updated.status !== 'cancelled' ? advanceAmount : 0;
+    return {
+      appointment: updated,
+      advanceAmount,
+      paidAmount,
+      dueAmount: Math.round((updated.serviceSnapshot.price - paidAmount) * 100) / 100,
+      currency: updated.serviceSnapshot.currency,
     };
   }
 }

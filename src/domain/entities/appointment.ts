@@ -20,6 +20,7 @@ export interface ClientInfo {
   name: string;
   phone?: string;
   email?: string;
+  documentId?: string;
   habeasDataAcceptedAt: string;
   ip?: string;
   userAgent?: string;

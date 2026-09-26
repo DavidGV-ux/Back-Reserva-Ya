@@ -1,8 +1,14 @@
 import { NotFoundError } from '../../../shared/errors';
 import { Appointment, PaymentTransaction } from '../../../domain/entities';
 import { PaymentGatewayProvider } from '../../../domain/ports/gateways';
-import { AppointmentRepository, PaymentTransactionRepository, TenantRepository } from '../../../domain/ports/repositories';
-import { UnitOfWork } from '../../../domain/ports/unit-of-work';
+import {
+  AppointmentRepository,
+  AvailabilityBlockRepository,
+  PaymentTransactionRepository,
+  TenantRepository,
+  TimeSlotRepository,
+} from '../../../domain/ports/repositories';
+import { TransactionRepositories, UnitOfWork } from '../../../domain/ports/unit-of-work';
 import {
   buildLedgerForApprovedCharge,
   buildLedgerForRejectedPayment,
@@ -21,6 +27,7 @@ export interface ExpiryResult {
   scanned: number;
   expired: number;
   refundRequested: number;
+  reconciled: number;
   skipped: number;
   failed: number;
 }
@@ -33,6 +40,8 @@ export class PaymentsUseCases {
       appointments: AppointmentRepository;
       tenants: TenantRepository;
       paymentTransactions: PaymentTransactionRepository;
+      availabilityBlocks: AvailabilityBlockRepository;
+      timeSlots: TimeSlotRepository;
     },
   ) {}
 
@@ -42,10 +51,7 @@ export class PaymentsUseCases {
 
   async processWebhook(input: { rawEvent: unknown; tenantId?: string }): Promise<PaymentEventResult> {
     const event = await this.gateway.confirmEvent(input.rawEvent);
-    const tenantId = (event.metadata?.tenantId as string | undefined) ?? input.tenantId;
-    if (!tenantId) {
-      return { handled: false, reason: 'unknown_reference' };
-    }
+    const requestedTenantId = (event.metadata?.tenantId as string | undefined) ?? input.tenantId;
 
     return this.uow.withTransaction(async (tx) => {
       const alreadyProcessed = await tx.paymentTransactions.findByProviderEvent(
@@ -54,9 +60,13 @@ export class PaymentsUseCases {
       );
       if (alreadyProcessed) return { handled: false, reason: 'duplicate', transaction: alreadyProcessed };
 
-      const existing = await tx.paymentTransactions.findByInternalReference(tenantId, event.internalReference);
+      const existing = await tx.paymentTransactions.findByInternalReference(
+        requestedTenantId,
+        event.internalReference,
+      );
       if (!existing) return { handled: false, reason: 'unknown_reference' };
 
+      const tenantId = existing.tenantId;
       const appointment = await tx.appointments.findById(tenantId, existing.appointmentId);
       if (!appointment) throw new NotFoundError('Appointment', existing.appointmentId);
 
@@ -69,55 +79,11 @@ export class PaymentsUseCases {
       }
 
       if (event.operation === 'charge') {
-        if (event.status === 'approved') {
-          const approved = await tx.paymentTransactions.updateStatus(
-            tenantId,
-            existing.id,
-            existing.version,
-            'approved',
-            {
-              providerTransactionId: event.providerTransactionId,
-              providerEventId: event.providerEventId,
-              actor: 'payment-gateway',
-            },
-          );
-          const updated = await tx.appointments.updateStatus(
-            tenantId,
-            appointment.id,
-            appointment.version,
-            {
-              status: appointment.status === 'pending_payment' ? 'confirmed' : appointment.status,
-              paymentStatus: 'approved',
-              latestPaymentTransactionId: approved.id,
-            },
-            'payment-gateway',
-          );
-          const entries = buildLedgerForApprovedCharge({ transaction: approved, appointment: updated });
-          for (const entry of entries) {
-            await tx.ledger.create(entry);
-          }
-          return { handled: true, transaction: approved, appointment: updated };
-        }
-
-        const declined = await tx.paymentTransactions.updateStatus(
-          tenantId,
-          existing.id,
-          existing.version,
-          'declined',
-          { providerEventId: event.providerEventId, actor: 'payment-gateway' },
-        );
-        const updated = await tx.appointments.updateStatus(
-          tenantId,
-          appointment.id,
-          appointment.version,
-          { status: 'expired', paymentStatus: 'rejected' },
-          'payment-gateway',
-        );
-        const entries = buildLedgerForRejectedPayment({ transaction: declined, appointment: updated });
-        for (const entry of entries) {
-          await tx.ledger.create(entry);
-        }
-        return { handled: true, transaction: declined, appointment: updated };
+        return this.applyChargeEvent(tx, existing, appointment, {
+          providerTransactionId: event.providerTransactionId,
+          providerEventId: event.providerEventId,
+          status: event.status,
+        }, 'payment-gateway');
       }
 
       if (event.operation === 'refund') {
@@ -152,7 +118,102 @@ export class PaymentsUseCases {
         return { handled: true, transaction: approved, appointment: updated };
       }
 
-      return { handled: false, reason: 'unknown_reference' as const };
+return { handled: false, reason: 'unknown_reference' as const };
+      });
+  }
+
+  private async applyChargeEvent(
+    tx: TransactionRepositories,
+    existing: PaymentTransaction,
+    appointment: Appointment,
+    intent: {
+      providerTransactionId?: string;
+      providerEventId: string;
+      status: PaymentTransaction['status'];
+    },
+    actor: string,
+  ): Promise<PaymentEventResult> {
+    const { tenantId } = existing;
+    if (intent.status === 'approved') {
+      const approved = await tx.paymentTransactions.updateStatus(
+        tenantId,
+        existing.id,
+        existing.version,
+        'approved',
+        {
+          providerTransactionId: intent.providerTransactionId,
+          providerEventId: intent.providerEventId,
+          actor,
+        },
+      );
+      const updated = await tx.appointments.updateStatus(
+        tenantId,
+        appointment.id,
+        appointment.version,
+        {
+          status: appointment.status === 'pending_payment' ? 'confirmed' : appointment.status,
+          paymentStatus: 'approved',
+          latestPaymentTransactionId: approved.id,
+        },
+        actor,
+      );
+      const entries = buildLedgerForApprovedCharge({ transaction: approved, appointment: updated });
+      for (const entry of entries) {
+        await tx.ledger.create(entry);
+      }
+      return { handled: true, transaction: approved, appointment: updated };
+    }
+
+    const declined = await tx.paymentTransactions.updateStatus(
+      tenantId,
+      existing.id,
+      existing.version,
+      'declined',
+      { providerEventId: intent.providerEventId, actor },
+    );
+    await tx.timeSlots.removeForAppointment(tenantId, appointment.id);
+    const updated = await tx.appointments.updateStatus(
+      tenantId,
+      appointment.id,
+      appointment.version,
+      { status: 'expired', paymentStatus: 'rejected' },
+      actor,
+    );
+    const entries = buildLedgerForRejectedPayment({ transaction: declined, appointment: updated });
+    for (const entry of entries) {
+      await tx.ledger.create(entry);
+    }
+    return { handled: true, transaction: declined, appointment: updated };
+  }
+
+  async reconcilePayment(input: { tenantId: string; appointmentId: string; actor?: string }): Promise<PaymentEventResult> {
+    return this.uow.withTransaction(async (tx) => {
+      const appointment = await tx.appointments.findById(input.tenantId, input.appointmentId);
+      if (!appointment) return { handled: false, reason: 'unknown_reference' };
+      if (appointment.status !== 'pending_payment' || appointment.paymentStatus !== 'pending') {
+        return { handled: false, reason: 'pending' };
+      }
+
+      const reference = appointment.paymentReference;
+      if (!reference) return { handled: false, reason: 'unknown_reference' };
+
+      const existing = await tx.paymentTransactions.findByInternalReference(input.tenantId, reference);
+      if (!existing || existing.status !== 'pending') return { handled: false, reason: 'pending' };
+
+      const remote = await this.gateway.fetchChargeStatus({ internalReference: reference });
+      if (!remote || remote.status === 'pending') return { handled: false, reason: 'pending' };
+
+      return this.applyChargeEvent(
+        tx,
+        existing,
+        appointment,
+        {
+          providerTransactionId: remote.providerTransactionId,
+          providerEventId: `reconcile:${reference}:${remote.providerTransactionId}`,
+          status: remote.status,
+        },
+        input.actor ?? 'payment-gateway',
+      );
     });
   }
 
@@ -164,6 +225,7 @@ export class PaymentsUseCases {
 
     let expired = 0;
     let refundRequested = 0;
+    let reconciled = 0;
     let skipped = 0;
     let failed = 0;
 
@@ -227,6 +289,31 @@ export class PaymentsUseCases {
             return 'refunded' as const;
           }
 
+          if (payment && payment.status === 'pending') {
+            try {
+              const remote = fresh.paymentReference
+                ? await this.gateway.fetchChargeStatus({ internalReference: fresh.paymentReference })
+                : null;
+              if (remote && remote.status !== 'pending') {
+                await this.applyChargeEvent(
+                  tx,
+                  payment,
+                  fresh,
+                  {
+                    providerTransactionId: remote.providerTransactionId,
+                    providerEventId: `reconcile:${fresh.paymentReference}:${remote.providerTransactionId}`,
+                    status: remote.status,
+                  },
+                  'scheduler',
+                );
+                reconciled += 1;
+                return 'reconciled' as const;
+              }
+            } catch {
+              // si el proveedor no responde, se deja expirar bajo el flujo normal
+            }
+          }
+
           await tx.timeSlots.removeForAppointment(appt.tenantId, fresh.id);
           const updated = await tx.appointments.updateStatus(
             appt.tenantId,
@@ -261,6 +348,24 @@ export class PaymentsUseCases {
       }
     }
 
-    return { scanned: candidates.length, expired, refundRequested, skipped, failed };
+    return { scanned: candidates.length, expired, refundRequested, reconciled, skipped, failed };
+  }
+
+  async repairTimeSlots(): Promise<{ tenants: number; removed: number }> {
+    const tenants = await this.repos.tenants.list();
+    let removed = 0;
+    for (const tenant of tenants) {
+      const [occupiedAppointmentIds, activeBlockIds] = await Promise.all([
+        this.repos.appointments.findOccupiedIds(tenant.tenantId),
+        this.repos.availabilityBlocks.findActiveIds(tenant.tenantId),
+      ]);
+      const result = await this.repos.timeSlots.removeOrphans(
+        tenant.tenantId,
+        occupiedAppointmentIds,
+        activeBlockIds,
+      );
+      removed += result.removed;
+    }
+    return { tenants: tenants.length, removed };
   }
 }

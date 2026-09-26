@@ -82,6 +82,17 @@ export class MockPaymentGateway implements PaymentGatewayProvider {
     };
   }
 
+  async fetchChargeStatus(_input: {
+    internalReference: string;
+  }): Promise<{
+    providerTransactionId: string;
+    status: PaymentTransaction['status'];
+    amount: number;
+    currency: string;
+  } | null> {
+    return null;
+  }
+
   async confirmEvent(event: ProviderWebhookEnvelope | unknown): Promise<{
     provider: string;
     providerEventId: string;

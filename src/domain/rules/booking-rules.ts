@@ -1,4 +1,5 @@
 import { AppointmentSource, ClientInfo } from '../entities';
+import { normalizePhoneE164 } from '../../shared/phone';
 
 export interface BookingRuleInput {
   service: {
@@ -46,6 +47,7 @@ export function clientInfoFrom(input: {
   name: string;
   phone?: string;
   email?: string;
+  documentId?: string;
   habeasDataConsent: boolean;
   habeasDataConsentAt?: string;
   ip?: string;
@@ -55,11 +57,13 @@ export function clientInfoFrom(input: {
   if (!input.habeasDataConsent) {
     throw new Error('HabeasDataRequired: client must accept data processing');
   }
+  const phone = input.phone ? normalizePhoneE164(input.phone) ?? undefined : undefined;
   return {
     clientId: input.clientId,
     name: input.name,
-    phone: input.phone,
+    phone,
     email: input.email,
+    documentId: input.documentId,
     habeasDataAcceptedAt: input.habeasDataConsentAt ?? new Date().toISOString(),
     ip: input.ip,
     userAgent: input.userAgent,

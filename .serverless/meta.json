@@ -1,9 +1,10 @@
 {
   "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/serverless.yml": {
-    "versionFramework": "4.42.0",
+    "versionFramework": "4.43.0",
     "servicePath": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/serverless.yml",
     "serviceConfigFileName": "serverless.yml",
     "service": {
+      "org": "winaifinance",
       "service": "reserwaya-back",
       "frameworkVersion": ">=4.0.0",
       "provider": {
@@ -20,9 +21,9 @@
           "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
           "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
           "PAYMENT_PROVIDER": "wompi",
-          "WOMPI_ENVIRONMENT": "prod",
+          "WOMPI_ENVIRONMENT": "test",
           "WOMPI_EVENTS_SECRET": "<REDACTED>",
-          "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+          "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
           "WOMPI_PRIVATE_KEY": "<REDACTED>",
           "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
           "PAYU_API_KEY": "<REDACTED>",
@@ -30,7 +31,11 @@
           "PAYU_MERCHANT_ID": "",
           "PAYU_ACCOUNT_ID": "",
           "PAYU_BASE_URL": "https://api.payulatam.com",
+          "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+          "PAYMENT_SESSION_SECRET": "<REDACTED>",
           "WHATSAPP_PROVIDER": "mock",
+          "WHATSAPP_BOT_SECRET": "<REDACTED>",
+          "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
           "CANCELLATION_PROCESSING_FEE_RATE": "0"
         },
         "versionFunctions": true,
@@ -48,6 +53,12 @@
               "Type": "AWS::Logs::LogGroup",
               "Properties": {
                 "LogGroupName": "/aws/lambda/reserwaya-back-prod-expire-pending-payments"
+              }
+            },
+            "RepairDashtimeDashslotsLogGroup": {
+              "Type": "AWS::Logs::LogGroup",
+              "Properties": {
+                "LogGroupName": "/aws/lambda/reserwaya-back-prod-repair-time-slots"
               }
             },
             "IamRoleLambdaExecution": {
@@ -133,7 +144,7 @@
               "Properties": {
                 "Code": {
                   "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                  "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+                  "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
                 },
                 "Handler": "dist-lambda/index.lambdaHandler",
                 "Runtime": "nodejs22.x",
@@ -150,9 +161,9 @@
                     "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                     "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                     "PAYMENT_PROVIDER": "wompi",
-                    "WOMPI_ENVIRONMENT": "prod",
+                    "WOMPI_ENVIRONMENT": "test",
                     "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                    "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                    "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                     "WOMPI_PRIVATE_KEY": "<REDACTED>",
                     "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                     "PAYU_API_KEY": "<REDACTED>",
@@ -160,7 +171,11 @@
                     "PAYU_MERCHANT_ID": "",
                     "PAYU_ACCOUNT_ID": "",
                     "PAYU_BASE_URL": "https://api.payulatam.com",
+                    "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                    "PAYMENT_SESSION_SECRET": "<REDACTED>",
                     "WHATSAPP_PROVIDER": "mock",
+                    "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                    "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                     "CANCELLATION_PROCESSING_FEE_RATE": "0"
                   }
                 },
@@ -180,7 +195,7 @@
               "Properties": {
                 "Code": {
                   "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                  "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+                  "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
                 },
                 "Handler": "dist-lambda/scheduled.expiredPaymentsHandler",
                 "Runtime": "nodejs22.x",
@@ -197,9 +212,9 @@
                     "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                     "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                     "PAYMENT_PROVIDER": "wompi",
-                    "WOMPI_ENVIRONMENT": "prod",
+                    "WOMPI_ENVIRONMENT": "test",
                     "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                    "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                    "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                     "WOMPI_PRIVATE_KEY": "<REDACTED>",
                     "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                     "PAYU_API_KEY": "<REDACTED>",
@@ -207,7 +222,11 @@
                     "PAYU_MERCHANT_ID": "",
                     "PAYU_ACCOUNT_ID": "",
                     "PAYU_BASE_URL": "https://api.payulatam.com",
+                    "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                    "PAYMENT_SESSION_SECRET": "<REDACTED>",
                     "WHATSAPP_PROVIDER": "mock",
+                    "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                    "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                     "CANCELLATION_PROCESSING_FEE_RATE": "0"
                   }
                 },
@@ -222,24 +241,85 @@
                 "ExpireDashpendingDashpaymentsLogGroup"
               ]
             },
-            "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug": {
+            "RepairDashtimeDashslotsLambdaFunction": {
+              "Type": "AWS::Lambda::Function",
+              "Properties": {
+                "Code": {
+                  "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+                  "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
+                },
+                "Handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
+                "Runtime": "nodejs22.x",
+                "FunctionName": "reserwaya-back-prod-repair-time-slots",
+                "MemorySize": 256,
+                "Timeout": 60,
+                "Environment": {
+                  "Variables": {
+                    "NODE_ENV": "production",
+                    "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+                    "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+                    "OIDC_CLIENT_ID": "reserwaya-web",
+                    "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+                    "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+                    "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
+                    "PAYMENT_PROVIDER": "wompi",
+                    "WOMPI_ENVIRONMENT": "test",
+                    "WOMPI_EVENTS_SECRET": "<REDACTED>",
+                    "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
+                    "WOMPI_PRIVATE_KEY": "<REDACTED>",
+                    "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
+                    "PAYU_API_KEY": "<REDACTED>",
+                    "PAYU_API_SECRET": "<REDACTED>",
+                    "PAYU_MERCHANT_ID": "",
+                    "PAYU_ACCOUNT_ID": "",
+                    "PAYU_BASE_URL": "https://api.payulatam.com",
+                    "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                    "PAYMENT_SESSION_SECRET": "<REDACTED>",
+                    "WHATSAPP_PROVIDER": "mock",
+                    "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                    "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
+                    "CANCELLATION_PROCESSING_FEE_RATE": "0"
+                  }
+                },
+                "Role": {
+                  "Fn::GetAtt": [
+                    "IamRoleLambdaExecution",
+                    "Arn"
+                  ]
+                }
+              },
+              "DependsOn": [
+                "RepairDashtimeDashslotsLogGroup"
+              ]
+            },
+            "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64": {
               "Type": "AWS::Lambda::Version",
               "DeletionPolicy": "Retain",
               "Properties": {
                 "FunctionName": {
                   "Ref": "ApiLambdaFunction"
                 },
-                "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+                "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
               }
             },
-            "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s": {
+            "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI": {
+              "Type": "AWS::Lambda::Version",
+              "DeletionPolicy": "Retain",
+              "Properties": {
+                "FunctionName": {
+                  "Ref": "RepairDashtimeDashslotsLambdaFunction"
+                },
+                "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
+              }
+            },
+            "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c": {
               "Type": "AWS::Lambda::Version",
               "DeletionPolicy": "Retain",
               "Properties": {
                 "FunctionName": {
                   "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
                 },
-                "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+                "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
               }
             },
             "ExpireDashpendingDashpaymentsEventsRuleSchedule1": {
@@ -274,6 +354,43 @@
                 "SourceArn": {
                   "Fn::GetAtt": [
                     "ExpireDashpendingDashpaymentsEventsRuleSchedule1",
+                    "Arn"
+                  ]
+                }
+              }
+            },
+            "RepairDashtimeDashslotsEventsRuleSchedule1": {
+              "Type": "AWS::Events::Rule",
+              "Properties": {
+                "ScheduleExpression": "rate(15 minutes)",
+                "State": "ENABLED",
+                "Targets": [
+                  {
+                    "Arn": {
+                      "Fn::GetAtt": [
+                        "RepairDashtimeDashslotsLambdaFunction",
+                        "Arn"
+                      ]
+                    },
+                    "Id": "repair-time-slotsSchedule"
+                  }
+                ]
+              }
+            },
+            "RepairDashtimeDashslotsLambdaPermissionEventsRuleSchedule1": {
+              "Type": "AWS::Lambda::Permission",
+              "Properties": {
+                "FunctionName": {
+                  "Fn::GetAtt": [
+                    "RepairDashtimeDashslotsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                  "Fn::GetAtt": [
+                    "RepairDashtimeDashslotsEventsRuleSchedule1",
                     "Arn"
                   ]
                 }
@@ -385,16 +502,25 @@
             "ApiLambdaFunctionQualifiedArn": {
               "Description": "Current Lambda function version",
               "Value": {
-                "Ref": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
+                "Ref": "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64"
               },
               "Export": {
                 "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
               }
             },
+            "RepairDashtimeDashslotsLambdaFunctionQualifiedArn": {
+              "Description": "Current Lambda function version",
+              "Value": {
+                "Ref": "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI"
+              },
+              "Export": {
+                "Name": "sls-reserwaya-back-prod-RepairDashtimeDashslotsLambdaFunctionQualifiedArn"
+              }
+            },
             "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
               "Description": "Current Lambda function version",
               "Value": {
-                "Ref": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
+                "Ref": "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c"
               },
               "Export": {
                 "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
@@ -454,7 +580,7 @@
           "memory": 256,
           "runtime": "nodejs22.x",
           "vpc": {},
-          "versionLogicalId": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
+          "versionLogicalId": "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64"
         },
         "expire-pending-payments": {
           "handler": "dist-lambda/scheduled.expiredPaymentsHandler",
@@ -470,7 +596,23 @@
           "memory": 256,
           "runtime": "nodejs22.x",
           "vpc": {},
-          "versionLogicalId": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
+          "versionLogicalId": "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c"
+        },
+        "repair-time-slots": {
+          "handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
+          "events": [
+            {
+              "schedule": "rate(15 minutes)"
+            }
+          ],
+          "timeout": 60,
+          "memorySize": 256,
+          "name": "reserwaya-back-prod-repair-time-slots",
+          "package": {},
+          "memory": 256,
+          "runtime": "nodejs22.x",
+          "vpc": {},
+          "versionLogicalId": "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI"
         }
       },
       "package": {
@@ -481,7 +623,7 @@
         "artifactsS3KeyDirname": "serverless/reserwaya-back/prod/code-artifacts",
         "deploymentBucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
         "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip",
-        "artifactDirectoryName": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z"
+        "artifactDirectoryName": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z"
       }
     },
     "provider": {
@@ -498,9 +640,9 @@
         "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
         "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
         "PAYMENT_PROVIDER": "wompi",
-        "WOMPI_ENVIRONMENT": "prod",
+        "WOMPI_ENVIRONMENT": "test",
         "WOMPI_EVENTS_SECRET": "<REDACTED>",
-        "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+        "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
         "WOMPI_PRIVATE_KEY": "<REDACTED>",
         "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
         "PAYU_API_KEY": "<REDACTED>",
@@ -508,7 +650,11 @@
         "PAYU_MERCHANT_ID": "",
         "PAYU_ACCOUNT_ID": "",
         "PAYU_BASE_URL": "https://api.payulatam.com",
+        "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+        "PAYMENT_SESSION_SECRET": "<REDACTED>",
         "WHATSAPP_PROVIDER": "mock",
+        "WHATSAPP_BOT_SECRET": "<REDACTED>",
+        "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
         "CANCELLATION_PROCESSING_FEE_RATE": "0"
       },
       "versionFunctions": true,
@@ -526,6 +672,12 @@
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
               "LogGroupName": "/aws/lambda/reserwaya-back-prod-expire-pending-payments"
+            }
+          },
+          "RepairDashtimeDashslotsLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/lambda/reserwaya-back-prod-repair-time-slots"
             }
           },
           "IamRoleLambdaExecution": {
@@ -611,7 +763,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/index.lambdaHandler",
               "Runtime": "nodejs22.x",
@@ -628,9 +780,9 @@
                   "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                   "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                   "PAYMENT_PROVIDER": "wompi",
-                  "WOMPI_ENVIRONMENT": "prod",
+                  "WOMPI_ENVIRONMENT": "test",
                   "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                  "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                  "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                   "WOMPI_PRIVATE_KEY": "<REDACTED>",
                   "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                   "PAYU_API_KEY": "<REDACTED>",
@@ -638,7 +790,11 @@
                   "PAYU_MERCHANT_ID": "",
                   "PAYU_ACCOUNT_ID": "",
                   "PAYU_BASE_URL": "https://api.payulatam.com",
+                  "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                  "PAYMENT_SESSION_SECRET": "<REDACTED>",
                   "WHATSAPP_PROVIDER": "mock",
+                  "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                  "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                   "CANCELLATION_PROCESSING_FEE_RATE": "0"
                 }
               },
@@ -658,7 +814,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/scheduled.expiredPaymentsHandler",
               "Runtime": "nodejs22.x",
@@ -675,9 +831,9 @@
                   "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                   "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                   "PAYMENT_PROVIDER": "wompi",
-                  "WOMPI_ENVIRONMENT": "prod",
+                  "WOMPI_ENVIRONMENT": "test",
                   "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                  "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                  "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                   "WOMPI_PRIVATE_KEY": "<REDACTED>",
                   "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                   "PAYU_API_KEY": "<REDACTED>",
@@ -685,7 +841,11 @@
                   "PAYU_MERCHANT_ID": "",
                   "PAYU_ACCOUNT_ID": "",
                   "PAYU_BASE_URL": "https://api.payulatam.com",
+                  "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                  "PAYMENT_SESSION_SECRET": "<REDACTED>",
                   "WHATSAPP_PROVIDER": "mock",
+                  "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                  "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                   "CANCELLATION_PROCESSING_FEE_RATE": "0"
                 }
               },
@@ -700,24 +860,85 @@
               "ExpireDashpendingDashpaymentsLogGroup"
             ]
           },
-          "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug": {
+          "RepairDashtimeDashslotsLambdaFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+                "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
+              },
+              "Handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
+              "Runtime": "nodejs22.x",
+              "FunctionName": "reserwaya-back-prod-repair-time-slots",
+              "MemorySize": 256,
+              "Timeout": 60,
+              "Environment": {
+                "Variables": {
+                  "NODE_ENV": "production",
+                  "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+                  "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+                  "OIDC_CLIENT_ID": "reserwaya-web",
+                  "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+                  "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+                  "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
+                  "PAYMENT_PROVIDER": "wompi",
+                  "WOMPI_ENVIRONMENT": "test",
+                  "WOMPI_EVENTS_SECRET": "<REDACTED>",
+                  "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
+                  "WOMPI_PRIVATE_KEY": "<REDACTED>",
+                  "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
+                  "PAYU_API_KEY": "<REDACTED>",
+                  "PAYU_API_SECRET": "<REDACTED>",
+                  "PAYU_MERCHANT_ID": "",
+                  "PAYU_ACCOUNT_ID": "",
+                  "PAYU_BASE_URL": "https://api.payulatam.com",
+                  "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                  "PAYMENT_SESSION_SECRET": "<REDACTED>",
+                  "WHATSAPP_PROVIDER": "mock",
+                  "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                  "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
+                  "CANCELLATION_PROCESSING_FEE_RATE": "0"
+                }
+              },
+              "Role": {
+                "Fn::GetAtt": [
+                  "IamRoleLambdaExecution",
+                  "Arn"
+                ]
+              }
+            },
+            "DependsOn": [
+              "RepairDashtimeDashslotsLogGroup"
+            ]
+          },
+          "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+              "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
             }
           },
-          "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s": {
+          "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "RepairDashtimeDashslotsLambdaFunction"
+              },
+              "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
               },
-              "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+              "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
             }
           },
           "ExpireDashpendingDashpaymentsEventsRuleSchedule1": {
@@ -752,6 +973,43 @@
               "SourceArn": {
                 "Fn::GetAtt": [
                   "ExpireDashpendingDashpaymentsEventsRuleSchedule1",
+                  "Arn"
+                ]
+              }
+            }
+          },
+          "RepairDashtimeDashslotsEventsRuleSchedule1": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+              "ScheduleExpression": "rate(15 minutes)",
+              "State": "ENABLED",
+              "Targets": [
+                {
+                  "Arn": {
+                    "Fn::GetAtt": [
+                      "RepairDashtimeDashslotsLambdaFunction",
+                      "Arn"
+                    ]
+                  },
+                  "Id": "repair-time-slotsSchedule"
+                }
+              ]
+            }
+          },
+          "RepairDashtimeDashslotsLambdaPermissionEventsRuleSchedule1": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+              "FunctionName": {
+                "Fn::GetAtt": [
+                  "RepairDashtimeDashslotsLambdaFunction",
+                  "Arn"
+                ]
+              },
+              "Action": "lambda:InvokeFunction",
+              "Principal": "events.amazonaws.com",
+              "SourceArn": {
+                "Fn::GetAtt": [
+                  "RepairDashtimeDashslotsEventsRuleSchedule1",
                   "Arn"
                 ]
               }
@@ -863,16 +1121,25 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
+              "Ref": "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64"
             },
             "Export": {
               "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
             }
           },
+          "RepairDashtimeDashslotsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI"
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-RepairDashtimeDashslotsLambdaFunctionQualifiedArn"
+            }
+          },
           "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
+              "Ref": "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c"
             },
             "Export": {
               "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
@@ -925,13 +1192,11 @@
       "serviceProvider": null,
       "instanceParameters": null
     },
-    "serviceRawFile": "service: reserwaya-back\nframeworkVersion: \">=4.0.0\"\n\nprovider:\n  name: aws\n  runtime: nodejs22.x\n  region: us-east-1\n  stage: prod\n  environment:\n    NODE_ENV: production\n    MONGODB_URI: ${env:MONGODB_URI}\n    OIDC_ISSUER: ${env:OIDC_ISSUER}\n    OIDC_CLIENT_ID: ${env:OIDC_CLIENT_ID}\n    OIDC_ADMIN_BASE_URL: ${env:OIDC_ADMIN_BASE_URL}\n    OIDC_ADMIN_CLIENT_ID: ${env:OIDC_ADMIN_CLIENT_ID}\n    OIDC_ADMIN_CLIENT_SECRET: ${env:OIDC_ADMIN_CLIENT_SECRET}\n    PAYMENT_PROVIDER: ${env:PAYMENT_PROVIDER, 'mock'}\n    WOMPI_ENVIRONMENT: ${env:WOMPI_ENVIRONMENT, 'test'}\n    WOMPI_EVENTS_SECRET: ${env:WOMPI_EVENTS_SECRET, ''}\n    WOMPI_PUBLIC_KEY: ${env:WOMPI_PUBLIC_KEY, ''}\n    WOMPI_PRIVATE_KEY: ${env:WOMPI_PRIVATE_KEY, ''}\n    WOMPI_INTEGRITY_SECRET: ${env:WOMPI_INTEGRITY_SECRET, ''}\n    PAYU_API_KEY: ${env:PAYU_API_KEY, ''}\n    PAYU_API_SECRET: ${env:PAYU_API_SECRET, ''}\n    PAYU_MERCHANT_ID: ${env:PAYU_MERCHANT_ID, ''}\n    PAYU_ACCOUNT_ID: ${env:PAYU_ACCOUNT_ID, ''}\n    PAYU_BASE_URL: ${env:PAYU_BASE_URL, 'https://api.payulatam.com'}\n    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}\n    CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}\n\nfunctions:\n  api:\n    handler: dist-lambda/index.lambdaHandler\n    events:\n      - httpApi: \"*\"\n    timeout: 30\n    memorySize: 256\n\n  expire-pending-payments:\n    handler: dist-lambda/scheduled.expiredPaymentsHandler\n    events:\n      - schedule: rate(5 minutes)\n    timeout: 60\n    memorySize: 256\n\npackage:\n  patterns:\n    - '!**'\n    - 'dist-lambda/**'",
+    "serviceRawFile": "# \"org\" ensures this Service is used with the correct Serverless Framework Access Key.\norg: winaifinance\nservice: reserwaya-back\nframeworkVersion: \">=4.0.0\"\n\nprovider:\n  name: aws\n  runtime: nodejs22.x\n  region: us-east-1\n  stage: prod\n  environment:\n    NODE_ENV: production\n    MONGODB_URI: ${env:MONGODB_URI}\n    OIDC_ISSUER: ${env:OIDC_ISSUER}\n    OIDC_CLIENT_ID: ${env:OIDC_CLIENT_ID}\n    OIDC_ADMIN_BASE_URL: ${env:OIDC_ADMIN_BASE_URL}\n    OIDC_ADMIN_CLIENT_ID: ${env:OIDC_ADMIN_CLIENT_ID}\n    OIDC_ADMIN_CLIENT_SECRET: ${env:OIDC_ADMIN_CLIENT_SECRET}\n    PAYMENT_PROVIDER: ${env:PAYMENT_PROVIDER, 'mock'}\n    WOMPI_ENVIRONMENT: ${env:WOMPI_ENVIRONMENT, 'test'}\n    WOMPI_EVENTS_SECRET: ${env:WOMPI_EVENTS_SECRET, ''}\n    WOMPI_PUBLIC_KEY: ${env:WOMPI_PUBLIC_KEY, ''}\n    WOMPI_PRIVATE_KEY: ${env:WOMPI_PRIVATE_KEY, ''}\n    WOMPI_INTEGRITY_SECRET: ${env:WOMPI_INTEGRITY_SECRET, ''}\n    PAYU_API_KEY: ${env:PAYU_API_KEY, ''}\n    PAYU_API_SECRET: ${env:PAYU_API_SECRET, ''}\n    PAYU_MERCHANT_ID: ${env:PAYU_MERCHANT_ID, ''}\n    PAYU_ACCOUNT_ID: ${env:PAYU_ACCOUNT_ID, ''}\n    PAYU_BASE_URL: ${env:PAYU_BASE_URL, 'https://api.payulatam.com'}\n    FRONT_BASE_URL: ${env:FRONT_BASE_URL, 'https://d1ydnh3hbo1zxr.cloudfront.net'}\n    PAYMENT_SESSION_SECRET: ${env:PAYMENT_SESSION_SECRET, 'dev-reservaya-payment-session-secret'}\n    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}\n    WHATSAPP_BOT_SECRET: ${env:WHATSAPP_BOT_SECRET, ''}\n    WHATSAPP_EVENTS_ENDPOINT: ${env:WHATSAPP_EVENTS_ENDPOINT, ''}\n    CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}\n\nfunctions:\n  api:\n    handler: dist-lambda/index.lambdaHandler\n    events:\n      - httpApi: \"*\"\n    timeout: 30\n    memorySize: 256\n\n  expire-pending-payments:\n    handler: dist-lambda/scheduled.expiredPaymentsHandler\n    events:\n      - schedule: rate(5 minutes)\n    timeout: 60\n    memorySize: 256\n\n  repair-time-slots:\n    handler: dist-lambda/scheduled.repairTimeSlotsHandler\n    events:\n      - schedule: rate(15 minutes)\n    timeout: 60\n    memorySize: 256\n\npackage:\n  patterns:\n    - '!**'\n    - 'dist-lambda/**'",
     "command": [
       "deploy"
     ],
-    "options": {
-      "stage": "prod"
-    },
+    "options": {},
     "orgId": "abdfee18-0fac-4801-9a83-1e4b048387cb",
     "orgName": "winaifinance",
     "userId": "mJgLrw1VSMBT7PPmKf",
@@ -940,18 +1205,24 @@
     "serviceProviderAwsCfStackName": "reserwaya-back-prod",
     "serviceProviderAwsCfStackId": "arn:aws:cloudformation:us-east-1:888503972797:stack/reserwaya-back-prod/b6947570-acca-11f1-a74d-1259beae4c21",
     "serviceProviderAwsCfStackCreated": "2026-09-10T03:50:07.261Z",
-    "serviceProviderAwsCfStackUpdated": "2026-09-23T03:57:45.972Z",
+    "serviceProviderAwsCfStackUpdated": "2026-09-26T15:06:24.374Z",
     "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
     "serviceProviderAwsCfStackOutputs": [
       {
         "OutputKey": "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn",
-        "OutputValue": "arn:aws:lambda:us-east-1:888503972797:function:reserwaya-back-prod-expire-pending-payments:5",
+        "OutputValue": "arn:aws:lambda:us-east-1:888503972797:function:reserwaya-back-prod-expire-pending-payments:22",
         "Description": "Current Lambda function version",
         "ExportName": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
       },
       {
+        "OutputKey": "RepairDashtimeDashslotsLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:us-east-1:888503972797:function:reserwaya-back-prod-repair-time-slots:1",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-reserwaya-back-prod-RepairDashtimeDashslotsLambdaFunctionQualifiedArn"
+      },
+      {
         "OutputKey": "ApiLambdaFunctionQualifiedArn",
-        "OutputValue": "arn:aws:lambda:us-east-1:888503972797:function:reserwaya-back-prod-api:12",
+        "OutputValue": "arn:aws:lambda:us-east-1:888503972797:function:reserwaya-back-prod-api:29",
         "Description": "Current Lambda function version",
         "ExportName": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
       },
@@ -987,6 +1258,12 @@
           "Type": "AWS::Logs::LogGroup",
           "Properties": {
             "LogGroupName": "/aws/lambda/reserwaya-back-prod-expire-pending-payments"
+          }
+        },
+        "RepairDashtimeDashslotsLogGroup": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": "/aws/lambda/reserwaya-back-prod-repair-time-slots"
           }
         },
         "IamRoleLambdaExecution": {
@@ -1072,7 +1349,7 @@
           "Properties": {
             "Code": {
               "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-              "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+              "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
             },
             "Handler": "dist-lambda/index.lambdaHandler",
             "Runtime": "nodejs22.x",
@@ -1089,9 +1366,9 @@
                 "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                 "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                 "PAYMENT_PROVIDER": "wompi",
-                "WOMPI_ENVIRONMENT": "prod",
+                "WOMPI_ENVIRONMENT": "test",
                 "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                 "WOMPI_PRIVATE_KEY": "<REDACTED>",
                 "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                 "PAYU_API_KEY": "<REDACTED>",
@@ -1099,7 +1376,11 @@
                 "PAYU_MERCHANT_ID": "",
                 "PAYU_ACCOUNT_ID": "",
                 "PAYU_BASE_URL": "https://api.payulatam.com",
+                "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                "PAYMENT_SESSION_SECRET": "<REDACTED>",
                 "WHATSAPP_PROVIDER": "mock",
+                "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                 "CANCELLATION_PROCESSING_FEE_RATE": "0"
               }
             },
@@ -1119,7 +1400,7 @@
           "Properties": {
             "Code": {
               "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-              "S3Key": "serverless/reserwaya-back/prod/1790136564863-2026-09-23T04:09:24.863Z/reserwaya-back.zip"
+              "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
             },
             "Handler": "dist-lambda/scheduled.expiredPaymentsHandler",
             "Runtime": "nodejs22.x",
@@ -1136,9 +1417,9 @@
                 "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
                 "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
                 "PAYMENT_PROVIDER": "wompi",
-                "WOMPI_ENVIRONMENT": "prod",
+                "WOMPI_ENVIRONMENT": "test",
                 "WOMPI_EVENTS_SECRET": "<REDACTED>",
-                "WOMPI_PUBLIC_KEY": "pub_prod_zaHtCHsLNn03Q9J03qEOmrLla9TFO0ZD",
+                "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
                 "WOMPI_PRIVATE_KEY": "<REDACTED>",
                 "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
                 "PAYU_API_KEY": "<REDACTED>",
@@ -1146,7 +1427,11 @@
                 "PAYU_MERCHANT_ID": "",
                 "PAYU_ACCOUNT_ID": "",
                 "PAYU_BASE_URL": "https://api.payulatam.com",
+                "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                "PAYMENT_SESSION_SECRET": "<REDACTED>",
                 "WHATSAPP_PROVIDER": "mock",
+                "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
                 "CANCELLATION_PROCESSING_FEE_RATE": "0"
               }
             },
@@ -1161,24 +1446,85 @@
             "ExpireDashpendingDashpaymentsLogGroup"
           ]
         },
-        "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug": {
+        "RepairDashtimeDashslotsLambdaFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+              "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
+              "S3Key": "serverless/reserwaya-back/prod/1790435399891-2026-09-26T15:09:59.891Z/reserwaya-back.zip"
+            },
+            "Handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
+            "Runtime": "nodejs22.x",
+            "FunctionName": "reserwaya-back-prod-repair-time-slots",
+            "MemorySize": 256,
+            "Timeout": 60,
+            "Environment": {
+              "Variables": {
+                "NODE_ENV": "production",
+                "MONGODB_URI": "mongodb+srv://reservaya-app:maxi.1234@reservaya-cluster.bbi3bjt.mongodb.net/reservaya?retryWrites=true&w=majority&appName=reservaya-cluster",
+                "OIDC_ISSUER": "https://d5mklesn5mbc7.cloudfront.net/realms/reserwaya",
+                "OIDC_CLIENT_ID": "reserwaya-web",
+                "OIDC_ADMIN_BASE_URL": "https://d5mklesn5mbc7.cloudfront.net",
+                "OIDC_ADMIN_CLIENT_ID": "reserwaya-back",
+                "OIDC_ADMIN_CLIENT_SECRET": "<REDACTED>",
+                "PAYMENT_PROVIDER": "wompi",
+                "WOMPI_ENVIRONMENT": "test",
+                "WOMPI_EVENTS_SECRET": "<REDACTED>",
+                "WOMPI_PUBLIC_KEY": "pub_test_oYynCgmhvKtbLiGTWa9z4130FifkoKSR",
+                "WOMPI_PRIVATE_KEY": "<REDACTED>",
+                "WOMPI_INTEGRITY_SECRET": "<REDACTED>",
+                "PAYU_API_KEY": "<REDACTED>",
+                "PAYU_API_SECRET": "<REDACTED>",
+                "PAYU_MERCHANT_ID": "",
+                "PAYU_ACCOUNT_ID": "",
+                "PAYU_BASE_URL": "https://api.payulatam.com",
+                "FRONT_BASE_URL": "https://d1ydnh3hbo1zxr.cloudfront.net",
+                "PAYMENT_SESSION_SECRET": "<REDACTED>",
+                "WHATSAPP_PROVIDER": "mock",
+                "WHATSAPP_BOT_SECRET": "<REDACTED>",
+                "WHATSAPP_EVENTS_ENDPOINT": "https://i198oa3267.execute-api.us-east-1.amazonaws.com/internal/events",
+                "CANCELLATION_PROCESSING_FEE_RATE": "0"
+              }
+            },
+            "Role": {
+              "Fn::GetAtt": [
+                "IamRoleLambdaExecution",
+                "Arn"
+              ]
+            }
+          },
+          "DependsOn": [
+            "RepairDashtimeDashslotsLogGroup"
+          ]
+        },
+        "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64": {
           "Type": "AWS::Lambda::Version",
           "DeletionPolicy": "Retain",
           "Properties": {
             "FunctionName": {
               "Ref": "ApiLambdaFunction"
             },
-            "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+            "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
           }
         },
-        "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s": {
+        "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI": {
+          "Type": "AWS::Lambda::Version",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "FunctionName": {
+              "Ref": "RepairDashtimeDashslotsLambdaFunction"
+            },
+            "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
+          }
+        },
+        "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c": {
           "Type": "AWS::Lambda::Version",
           "DeletionPolicy": "Retain",
           "Properties": {
             "FunctionName": {
               "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
             },
-            "CodeSha256": "AOn0fuU9CAkQV1knF0fn5BTjthGHEURNW/47/Cl3nHc="
+            "CodeSha256": "5ZeS+GcIWUBjiWT8nEqy4ulbWr3GA99QBU1IXkcnIjw="
           }
         },
         "ExpireDashpendingDashpaymentsEventsRuleSchedule1": {
@@ -1213,6 +1559,43 @@
             "SourceArn": {
               "Fn::GetAtt": [
                 "ExpireDashpendingDashpaymentsEventsRuleSchedule1",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "RepairDashtimeDashslotsEventsRuleSchedule1": {
+          "Type": "AWS::Events::Rule",
+          "Properties": {
+            "ScheduleExpression": "rate(15 minutes)",
+            "State": "ENABLED",
+            "Targets": [
+              {
+                "Arn": {
+                  "Fn::GetAtt": [
+                    "RepairDashtimeDashslotsLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "Id": "repair-time-slotsSchedule"
+              }
+            ]
+          }
+        },
+        "RepairDashtimeDashslotsLambdaPermissionEventsRuleSchedule1": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "RepairDashtimeDashslotsLambdaFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "events.amazonaws.com",
+            "SourceArn": {
+              "Fn::GetAtt": [
+                "RepairDashtimeDashslotsEventsRuleSchedule1",
                 "Arn"
               ]
             }
@@ -1324,16 +1707,25 @@
         "ApiLambdaFunctionQualifiedArn": {
           "Description": "Current Lambda function version",
           "Value": {
-            "Ref": "ApiLambdaVersionkwaN7k65W55OaoTh487VpKE8wHD3xTIIONn37yIug"
+            "Ref": "ApiLambdaVersionh7eFdLXyAnP7VId6JKZAcSICWPaByWGJvAwVDrl64"
           },
           "Export": {
             "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
           }
         },
+        "RepairDashtimeDashslotsLambdaFunctionQualifiedArn": {
+          "Description": "Current Lambda function version",
+          "Value": {
+            "Ref": "RepairDashtimeDashslotsLambdaVersionKaEJ7Dmen3rFzO9ZSqCljlfC1QBnHYmUAVkHvCJ17sI"
+          },
+          "Export": {
+            "Name": "sls-reserwaya-back-prod-RepairDashtimeDashslotsLambdaFunctionQualifiedArn"
+          }
+        },
         "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
           "Description": "Current Lambda function version",
           "Value": {
-            "Ref": "ExpireDashpendingDashpaymentsLambdaVersion6kEEMWRbPTfXrY1zVvJxkgnlcWL1fJhj8xYsDNkOn3s"
+            "Ref": "ExpireDashpendingDashpaymentsLambdaVersiondIkfxjndJMhnJOrn6AXkY4P4NBb2pmcvz0jnureN6c"
           },
           "Export": {
             "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"

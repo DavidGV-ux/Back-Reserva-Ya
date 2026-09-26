@@ -15,4 +15,19 @@ export async function expiredPaymentsHandler(): Promise<{ statusCode: number; bo
   }
 }
 
+export async function repairTimeSlotsHandler(): Promise<{ statusCode: number; body: string }> {
+  const boot = await bootstrap();
+  try {
+    const result = await boot.services.payments.repairTimeSlots();
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({ event: 'repair-time-slots', ...result }));
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ event: 'repair-time-slots', ...result }),
+    };
+  } finally {
+    await boot.shutdown();
+  }
+}
+
 export const handler = expiredPaymentsHandler;

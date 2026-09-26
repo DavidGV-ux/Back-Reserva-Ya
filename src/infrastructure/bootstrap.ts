@@ -35,6 +35,10 @@ export async function bootstrap(): Promise<BootContext> {
       clientId: env.oidcAdminClientId,
       clientSecret: env.oidcAdminClientSecret,
     }),
+    settings: {
+      frontBaseUrl: env.frontBaseUrl,
+      paymentSessionSecret: env.paymentSessionSecret,
+    },
   });
 
   return {

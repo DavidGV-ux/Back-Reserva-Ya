@@ -61,6 +61,14 @@ export interface PaymentGatewayProvider {
     status: PaymentTransaction['status'];
     metadata?: Record<string, unknown>;
   }>;
+  fetchChargeStatus(input: {
+    internalReference: string;
+  }): Promise<{
+    providerTransactionId: string;
+    status: PaymentTransaction['status'];
+    amount: number;
+    currency: string;
+  } | null>;
 }
 
 export interface NotificationGateway {

@@ -32,6 +32,8 @@ export const env = {
   payuMerchantId: process.env.PAYU_MERCHANT_ID ?? '',
   payuAccountId: process.env.PAYU_ACCOUNT_ID ?? '',
   payuBaseUrl: process.env.PAYU_BASE_URL ?? 'https://api.payulatam.com',
+  frontBaseUrl: required('FRONT_BASE_URL', 'http://localhost:4200'),
+  paymentSessionSecret: required('PAYMENT_SESSION_SECRET', 'dev-reservaya-payment-session-secret'),
   seedAdmin: process.env.ADMIN_USER_ID ?? '',
   seedOwnerKeycloakId: process.env.SEED_OWNER_KEYCLOAK_ID ?? '',
   seedProfessionalKeycloakId: process.env.SEED_PROFESSIONAL_KEYCLOAK_ID ?? '',

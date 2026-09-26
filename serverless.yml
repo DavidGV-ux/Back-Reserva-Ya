@@ -1,3 +1,5 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: winaifinance
 service: reserwaya-back
 frameworkVersion: ">=4.0.0"
 
@@ -25,7 +27,11 @@ provider:
     PAYU_MERCHANT_ID: ${env:PAYU_MERCHANT_ID, ''}
     PAYU_ACCOUNT_ID: ${env:PAYU_ACCOUNT_ID, ''}
     PAYU_BASE_URL: ${env:PAYU_BASE_URL, 'https://api.payulatam.com'}
+    FRONT_BASE_URL: ${env:FRONT_BASE_URL, 'https://d1ydnh3hbo1zxr.cloudfront.net'}
+    PAYMENT_SESSION_SECRET: ${env:PAYMENT_SESSION_SECRET, 'dev-reservaya-payment-session-secret'}
     WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}
+    WHATSAPP_BOT_SECRET: ${env:WHATSAPP_BOT_SECRET, ''}
+    WHATSAPP_EVENTS_ENDPOINT: ${env:WHATSAPP_EVENTS_ENDPOINT, ''}
     CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}
 
 functions:
@@ -40,6 +46,13 @@ functions:
     handler: dist-lambda/scheduled.expiredPaymentsHandler
     events:
       - schedule: rate(5 minutes)
+    timeout: 60
+    memorySize: 256
+
+  repair-time-slots:
+    handler: dist-lambda/scheduled.repairTimeSlotsHandler
+    events:
+      - schedule: rate(15 minutes)
     timeout: 60
     memorySize: 256
 

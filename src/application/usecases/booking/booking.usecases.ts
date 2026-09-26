@@ -48,6 +48,7 @@ export class BookingUseCases {
       name: string;
       phone?: string;
       email?: string;
+      documentId?: string;
       habeasDataConsent: boolean;
       habeasDataConsentAt?: string;
       clientId?: string;
@@ -107,6 +108,11 @@ export class BookingUseCases {
       throw new ValidationError(`startTime must be aligned to ${granularity} minute slots`);
     }
 
+    const conflicts = await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
+    if (conflicts) {
+      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
+    }
+
     const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
     const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
     if (existing) {
@@ -125,17 +131,6 @@ export class BookingUseCases {
     const clientInfo = clientInfoFrom(input.clientInfo);
     const advanceAmount = computeAdvance({ service, plan, tenantSettings: tenant.settings });
     const paymentReference = reference('RSV');
-
-    // Double-check vs blocks and existing appointments before transaction (race is guarded by unique index on time_slots).
-    const conflicts = await this.repos.timeSlots.findOccupiedWithinRange(
-      input.tenantId,
-      professional.id,
-      new Date(startMs).toISOString(),
-      new Date(endMs).toISOString(),
-    );
-    if (conflicts.length > 0) {
-      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
-    }
 
     const source = input.payment?.token
       ? await this.chargeCardSource({
@@ -234,6 +229,37 @@ export class BookingUseCases {
       },
       replay: false,
     };
+  }
+
+  private async findOverlaps(
+    tenantId: string,
+    professionalId: string,
+    startMs: number,
+    endMs: number,
+  ): Promise<boolean> {
+    const [appointments, blocks] = await Promise.all([
+      this.repos.appointments.findOverlapping(
+        tenantId,
+        professionalId,
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+      ),
+      this.repos.availabilityBlocks.findActiveByProfessional(
+        tenantId,
+        professionalId,
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+      ),
+    ]);
+    const overlaps = (s: number, e: number) => s < endMs && e > startMs;
+    const apptConflict = appointments.some(
+      (a) => OCCUPIED_STATUSES.includes(a.status) &&
+        overlaps(new Date(a.startTime).getTime(), new Date(a.endTime).getTime()),
+    );
+    const blockConflict = blocks.some((b) =>
+      overlaps(new Date(b.startTime).getTime(), new Date(b.endTime).getTime()),
+    );
+    return apptConflict || blockConflict;
   }
 
   private async chargeCardSource(input: {
