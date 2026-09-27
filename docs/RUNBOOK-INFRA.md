@@ -46,10 +46,21 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 
 > PENDIENTE (Etapa 3 del plan): mover credenciales de `.env` a AWS Secrets Manager.
 
+**Estado actual (verificado 2026-09-27):**
+- AWS Secrets Manager está **vacío** — no existe ningún secreto todavía en la cuenta (`us-east-1`)
+- El rol de ejecución de la Lambda (`reserwaya-back-prod-us-east-1-lambdaRole`) tiene una única política en línea (`reserwaya-back-prod-lambda`) que **solo otorga permisos de CloudWatch Logs** (`CreateLogGroup`, `CreateLogStream`, `PutLogEvents`)
+- **El rol NO tiene permiso para leer Secrets Manager.** Al migrar credenciales, hay que agregar explícitamente `secretsmanager:GetSecretValue` a este rol, con el `Resource` limitado a los ARNs de los secretos de ReservaYa (nunca `"*"`, por seguridad y porque la cuenta es compartida con otros proyectos)
+
 **Variables de entorno actuales (en `.env` local / variables de Lambda):**
 - `MONGODB_URI`, `OIDC_*` (Keycloak)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
 - `BACKUP_RETENTION_DAYS`
+
+**Pasos pendientes para esta etapa:**
+1. Crear los secretos en Secrets Manager (uno por credencial, o uno agrupado tipo JSON)
+2. Agregar permiso `secretsmanager:GetSecretValue` al rol de la Lambda, limitado a esos ARNs específicos
+3. Actualizar `serverless.yml` para referenciar los secretos por ARN en vez de variables de entorno planas
+4. Quitar los valores reales de `.env` (dejar solo referencias)
 
 ## 5. Debugging
 
