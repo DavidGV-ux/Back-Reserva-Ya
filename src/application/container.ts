@@ -137,6 +137,7 @@ export class AppServices {
       ledger: deps.repos.ledger,
       tenantUsers: deps.repos.tenantUsers,
       availabilityBlocks: deps.repos.availabilityBlocks,
+      paymentTransactions: deps.repos.paymentTransactions,
     });
     this.notifications = new NotificationsUseCases(deps.repos.notifications, deps.notificationGateway);
     this.whatsapp = new WhatsappUseCases({

@@ -28,6 +28,14 @@ export class PaymentTransactionMongoRepository implements PaymentTransactionRepo
     return doc ? paymentToDomain(doc) : null;
   }
 
+  async findById(tenantId: string, id: string): Promise<PaymentTransaction | null> {
+    const doc = await this.collection.findOne(
+      { _id: bsonId(id), tenant_id: tenantId },
+      { session: this.session },
+    );
+    return doc ? paymentToDomain(doc) : null;
+  }
+
   async create(transaction: PaymentTransaction, actor: string): Promise<PaymentTransaction> {
     const doc = auditCreate(
       {

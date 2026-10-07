@@ -133,7 +133,7 @@ export class UserProfileMongoRepository implements UserProfileRepository {
         $set: {
           phone: profile.phone,
           phone_digits: profile.phoneDigits,
-          city: profile.city,
+          city: profile.city ?? '',
           ...(profile.name ? { name: profile.name } : {}),
           ...(profile.email ? { email: profile.email } : {}),
           ...(profile.inviteSentAt ? { invite_sent_at: new Date(profile.inviteSentAt) } : {}),
@@ -162,7 +162,7 @@ export class UserProfileMongoRepository implements UserProfileRepository {
       keycloakUserId: String(doc.keycloak_user_id),
       phone: String(doc.phone),
       phoneDigits: String(doc.phone_digits),
-      city: String(doc.city),
+      city: doc.city ? String(doc.city) : undefined,
       name: typeof doc.name === 'string' ? doc.name : undefined,
       email: typeof doc.email === 'string' ? doc.email : undefined,
       inviteSentAt: doc.invite_sent_at ? new Date(doc.invite_sent_at as Date).toISOString() : undefined,

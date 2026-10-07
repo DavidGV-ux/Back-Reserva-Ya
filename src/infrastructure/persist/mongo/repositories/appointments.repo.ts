@@ -175,6 +175,7 @@ export class AppointmentMongoRepository implements AppointmentRepository {
         end_time: new Date(appointment.endTime),
         status: appointment.status,
         payment_status: appointment.paymentStatus,
+        paid_amount: bsonMoney(appointment.paidAmount ?? 0),
         needs_reassignment: appointment.needsReassignment,
       },
       actor,
@@ -199,12 +200,14 @@ export class AppointmentMongoRepository implements AppointmentRepository {
       paymentStatus?: Appointment['paymentStatus'];
       latestPaymentTransactionId?: string;
       paymentReference?: string;
+      paidAmount?: number;
       cancellation?: Appointment['cancellation'];
     },
     actor: string,
   ): Promise<Appointment> {
     const set: Record<string, unknown> = { status: patch.status };
     if (patch.paymentStatus) set.payment_status = patch.paymentStatus;
+    if (patch.paidAmount !== undefined) set.paid_amount = bsonMoney(patch.paidAmount);
     if (patch.latestPaymentTransactionId) {
       set.latest_payment_transaction_id = bsonId(patch.latestPaymentTransactionId);
     }

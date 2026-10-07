@@ -138,6 +138,7 @@ export function appointmentToDomain(doc: Doc): Appointment {
     latestPaymentTransactionId: doc.latest_payment_transaction_id
       ? idToStr(doc.latest_payment_transaction_id)
       : undefined,
+    paidAmount: moneyToNumber(doc.paid_amount ?? 0),
     clientInfo: {
       clientId: client.client_id as string | undefined,
       name: String(client.name ?? ''),

@@ -78,6 +78,7 @@ export interface AppointmentRepository {
       paymentStatus?: import('../entities/types').PaymentStatus;
       latestPaymentTransactionId?: string;
       paymentReference?: string;
+      paidAmount?: number;
       cancellation?: Cancellation;
     },
     actor: string,
@@ -123,6 +124,7 @@ export interface TimeSlotRepository {
 export interface PaymentTransactionRepository {
   findByProviderEvent(provider: string, eventId: string): Promise<PaymentTransaction | null>;
   findByInternalReference(tenantId: string | undefined, reference: string): Promise<PaymentTransaction | null>;
+  findById(tenantId: string, id: string): Promise<PaymentTransaction | null>;
   create(transaction: PaymentTransaction, actor: string): Promise<PaymentTransaction>;
   updateStatus(
     tenantId: string,

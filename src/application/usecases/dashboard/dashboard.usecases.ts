@@ -5,6 +5,7 @@ import {
   AppointmentRepository,
   AvailabilityBlockRepository,
   LedgerRepository,
+  PaymentTransactionRepository,
   TenantRepository,
   TenantUserRepository,
 } from '../../../domain/ports/repositories';
@@ -48,8 +49,33 @@ export class DashboardUseCases {
       ledger: LedgerRepository;
       tenantUsers: TenantUserRepository;
       availabilityBlocks: AvailabilityBlockRepository;
+      paymentTransactions: PaymentTransactionRepository;
     },
   ) {}
+
+  /**
+   * Monto realmente pagado por el cliente. En citas creadas antes de que se
+   * persistiera `paidAmount`, se recupera el monto bruto de la transacción
+   * aprobada (enlace de pago por anticipo o por el total).
+   */
+  async #resolvePaidAmount(appointment: Appointment, advanceAmount: number): Promise<number> {
+    if (appointment.paymentStatus !== 'approved' || appointment.status === 'cancelled') return 0;
+    if (appointment.paidAmount && appointment.paidAmount > 0) return appointment.paidAmount;
+    if (appointment.latestPaymentTransactionId) {
+      try {
+        const tx = await this.repos.paymentTransactions.findById(
+          appointment.tenantId,
+          appointment.latestPaymentTransactionId,
+        );
+        if (tx && tx.status === 'approved' && tx.operation === 'charge' && tx.amount > 0) {
+          return Math.round(tx.amount * 100) / 100;
+        }
+      } catch {
+        // si no existe la transacción, se cae al anticipo
+      }
+    }
+    return advanceAmount;
+  }
 
   async ownerOverview(tenantId: string, requestorKeycloakId: string): Promise<OwnerOverview> {
     const tenant = await this.repos.tenants.findById(tenantId);
@@ -139,21 +165,19 @@ export class DashboardUseCases {
     const appointments = await this.repos.appointments.listByTenant(input.tenantId, from, to);
 
     const advancePct = tenant.settings.advancePaymentPercentage;
-    const rows: OwnerAppointmentRow[] = appointments.map((appointment) => {
+    const rows: OwnerAppointmentRow[] = [];
+    for (const appointment of appointments) {
       const advanceAmount =
         Math.round((appointment.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
-      const paidAmount =
-        appointment.paymentStatus === 'approved' && appointment.status !== 'cancelled'
-          ? advanceAmount
-          : 0;
-      return {
+      const paidAmount = await this.#resolvePaidAmount(appointment, advanceAmount);
+      rows.push({
         appointment,
         advanceAmount,
         paidAmount,
         dueAmount: Math.round((appointment.serviceSnapshot.price - paidAmount) * 100) / 100,
         currency: appointment.serviceSnapshot.currency,
-      };
-    });
+      });
+    }
 
     return { tenant, rows };
   }
@@ -186,8 +210,7 @@ export class DashboardUseCases {
 
     const advancePct = tenant.settings.advancePaymentPercentage;
     const advanceAmount = Math.round((updated.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
-    const paidAmount =
-      updated.paymentStatus === 'approved' && updated.status !== 'cancelled' ? advanceAmount : 0;
+    const paidAmount = await this.#resolvePaidAmount(updated, advanceAmount);
     return {
       appointment: updated,
       advanceAmount,

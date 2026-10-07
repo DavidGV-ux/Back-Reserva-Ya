@@ -105,6 +105,7 @@ export class PaymentsUseCases {
           {
             status: appointment.status,
             paymentStatus: 'refunded',
+            paidAmount: 0,
             cancellation: appointment.cancellation
               ? { ...appointment.cancellation, refundStatus: 'approved' as const }
               : appointment.cancellation,
@@ -154,6 +155,7 @@ return { handled: false, reason: 'unknown_reference' as const };
           status: appointment.status === 'pending_payment' ? 'confirmed' : appointment.status,
           paymentStatus: 'approved',
           latestPaymentTransactionId: approved.id,
+          paidAmount: existing.amount,
         },
         actor,
       );
