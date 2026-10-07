@@ -17,6 +17,11 @@ provider:
     PAYMENT_PROVIDER: ${env:PAYMENT_PROVIDER, 'mock'}
     WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}
     CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}
+    R2_ACCOUNT_ID: ${env:R2_ACCOUNT_ID}
+    R2_ACCESS_KEY_ID: ${env:R2_ACCESS_KEY_ID}
+    R2_SECRET_ACCESS_KEY: ${env:R2_SECRET_ACCESS_KEY}
+    R2_BUCKET_NAME: ${env:R2_BUCKET_NAME, 'reservaya-backups'}
+    BACKUP_RETENTION_DAYS: ${env:BACKUP_RETENTION_DAYS, '30'}
 
 functions:
   api:
@@ -25,6 +30,13 @@ functions:
       - httpApi: "*"
     timeout: 30
     memorySize: 256
+  
+    export-backup-r2:
+    handler: dist-lambda/backup.lambdaHandler
+    events:
+      - schedule: cron(0 2 * * ? *)
+    timeout: 60
+    memorySize: 512
 
 package:
   patterns:
