@@ -73,7 +73,7 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 
 ## 6. Monitoreo
 
-**Estado: parcialmente completo (2026-09-27)**
+**Estado: parcialmente completo (actualizado 2026-10-08)**
 
 **Canal de alertas (SNS):**
 - Topic: `arn:aws:sns:us-east-1:888503972797:reserwaya-back-prod-alerts`
@@ -93,17 +93,31 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 - Ver en consola: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards/dashboard/reserwaya-back-prod
 - Para actualizarlo: editar el JSON y volver a correr `aws cloudwatch put-dashboard --dashboard-name "reserwaya-back-prod" --dashboard-body file://docs/cloudwatch-dashboard.json --region us-east-1`
 
+**Verificación de alertas (2026-10-08):**
+- La alarma `reserwaya-back-prod-api-throttles` se disparó con un evento real y el correo de SNS llegó a los pocos minutos: queda verificado el flujo completo alarma → SNS → correo.
+- Detalle del evento: 14 invocaciones de `api` entre las 14:30 y las 14:35 (UTC-5), 1 con throttle. A las 14:33 la concurrencia total de la cuenta llegó a 10 (el límite). Duró un minuto y no se repitió.
+- No se determinó qué funciones consumieron el cupo en ese momento.
+
+**Límite de concurrencia de la cuenta:**
+- `ConcurrentExecutions: 10`, compartido entre las 31 funciones Lambda de la cuenta (ReservaYa y otros proyectos).
+- Riesgo: ráfagas de tráfico, crons coincidentes o pruebas en paralelo pueden causar throttling en cualquier función, incluida la demo.
+- Acciones propuestas (decisión del equipo / David): solicitar aumento en Service Quotas, revisar funciones `dev` de otros proyectos que consumen cupo, evitar pruebas pesadas durante la demo.
+
 **Qué hacer cuando llega una alerta:**
 1. Revisar el correo de SNS — indica cuál alarma se disparó y el valor exacto de la métrica
 2. Entrar al dashboard `reserwaya-back-prod` en CloudWatch para ver el contexto (¿fue un pico aislado o algo sostenido?)
 3. Revisar los logs de la Lambda en CloudWatch Logs: grupo `/aws/lambda/reserwaya-back-prod-api`
 4. Si es la alarma de **Errors**: buscar el stack trace en los logs alrededor de la hora del error
 5. Si es la alarma de **Duration**: revisar si coincide con una consulta pesada a Mongo, o con Mongo Atlas lento/caído
-6. Si es la alarma de **Throttles**: revisar si hubo un pico de tráfico inusual (posible necesidad de aumentar el límite de concurrencia)
+6. Si es la alarma de **Throttles**: recordar que el límite de concurrencia (10) es de toda la cuenta, no solo de esta Lambda. Consultar la métrica `ConcurrentExecutions` (AWS/Lambda, sin dimensiones, estadística Maximum, periodo de 60 s) para ver si la cuenta llegó a 10 y revisar qué otras funciones corrieron en esa ventana
 7. Si el problema requiere revertir un despliegue reciente: ver sección 2 (Rollback)
 8. Avisar en el chat del equipo, sin importar si ya se resolvió — para que quede registro
 
+**Limitaciones conocidas:**
+- Las alarmas solo avisan al entrar en ALARM; no tienen `ok-actions`, por lo que no llega aviso de recuperación.
+
 **Pendiente:**
+- Agregar `--ok-actions` a las 3 alarmas (aviso de recuperación)
 - Alarma de mensajes SQS visibles (aplica cuando se conecte la integración con WhatsApp IA — no existe cola SQS activa todavía)
 - Logs estructurados (formato JSON consistente) en el código del Back
 - Replicar este mismo monitoreo para la Lambda `export-backup-r2` una vez desplegada
