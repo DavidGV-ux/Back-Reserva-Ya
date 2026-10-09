@@ -133,19 +133,25 @@ export class KeycloakAdminGateway implements IdentityGateway {
     firstName?: string;
     lastName?: string;
     temporaryPassword: string;
+    persistentPassword?: boolean;
   }): Promise<{ sub: string }> {
+    // `persistentPassword` se usa en el autorregistro web: la contraseña elegida
+    // es definitiva (`temporary: false`). Como aún no hay flujo de verificación
+    // de correo, el email se marca verificado para que el usuario pueda entrar
+    // de inmediato; conviene sustituirlo por verificación real en una fase 2.
+    const persistent = Boolean(input.persistentPassword);
     const res = await this.request('POST', `/admin/realms/${this.realm}/users`, {
       username: input.username,
       email: input.email,
       firstName: input.firstName,
       lastName: input.lastName,
       enabled: true,
-      emailVerified: false,
+      emailVerified: persistent,
       credentials: [
         {
           type: 'password',
           value: input.temporaryPassword,
-          temporary: true,
+          temporary: !persistent,
         },
       ],
     });

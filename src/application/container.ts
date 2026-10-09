@@ -69,6 +69,7 @@ export class AppServices {
   readonly notifications: NotificationsUseCases;
   readonly whatsapp: WhatsappUseCases;
   readonly profile: ProfileUseCases;
+  readonly identity: IdentityGateway;
 
   constructor(deps: AppDependencies) {
     this.tenants = new TenantsUseCases({
@@ -147,5 +148,6 @@ export class AppServices {
       profiles: deps.repos.userProfiles,
     });
     this.profile = new ProfileUseCases({ userProfiles: deps.repos.userProfiles });
+    this.identity = deps.identity;
   }
 }

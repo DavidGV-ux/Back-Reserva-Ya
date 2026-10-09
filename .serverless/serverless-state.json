@@ -141,7 +141,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1790561192557-2026-09-28T02:06:32.557Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1791390501590-2026-10-07T16:28:21.590Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/index.lambdaHandler",
               "Runtime": "nodejs22.x",
@@ -192,7 +192,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1790561192557-2026-09-28T02:06:32.557Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1791390501590-2026-10-07T16:28:21.590Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/scheduled.expiredPaymentsHandler",
               "Runtime": "nodejs22.x",
@@ -243,7 +243,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
-                "S3Key": "serverless/reserwaya-back/prod/1790561192557-2026-09-28T02:06:32.557Z/reserwaya-back.zip"
+                "S3Key": "serverless/reserwaya-back/prod/1791390501590-2026-10-07T16:28:21.590Z/reserwaya-back.zip"
               },
               "Handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
               "Runtime": "nodejs22.x",
@@ -289,34 +289,34 @@
               "RepairDashtimeDashslotsLogGroup"
             ]
           },
-          "ApiLambdaVersionIXzGT6gqVwjZzLq7awCQp5uZo7UGeE1IiEgFG8ucqs8": {
+          "ApiLambdaVersionmjFB19dFybdQAo58KsGTG8RmIdJCX2HP2cw6OjwI": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "goomBZ+Oziiu6VvhoxnwKUtyU9d1rcj7PJuip6IlXXE="
+              "CodeSha256": "AvRXgzU1XahxYheYUGFXdwTVH/amphb877cEKXv6KAk="
             }
           },
-          "ExpireDashpendingDashpaymentsLambdaVersionFiwUjpQoAmWEsm2Z1KFwCql5hjdJEIi0h5vJE4TxPQ": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
-              },
-              "CodeSha256": "goomBZ+Oziiu6VvhoxnwKUtyU9d1rcj7PJuip6IlXXE="
-            }
-          },
-          "RepairDashtimeDashslotsLambdaVersionZ5z3hJ8lXIjRjJ3oUsPzBR73iXX3KAL3ZLlmLxsOLM": {
+          "RepairDashtimeDashslotsLambdaVersionfo6i5TyNma9JwzmTkOpTOXMC4zWm2SULJBP5M9H79E": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "RepairDashtimeDashslotsLambdaFunction"
               },
-              "CodeSha256": "goomBZ+Oziiu6VvhoxnwKUtyU9d1rcj7PJuip6IlXXE="
+              "CodeSha256": "AvRXgzU1XahxYheYUGFXdwTVH/amphb877cEKXv6KAk="
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaVersionAUnTx8dzheoIOIQXwuvMkMyvhqwOywPXM0jYalUvs": {
+            "Type": "AWS::Lambda::Version",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+              "FunctionName": {
+                "Ref": "ExpireDashpendingDashpaymentsLambdaFunction"
+              },
+              "CodeSha256": "AvRXgzU1XahxYheYUGFXdwTVH/amphb877cEKXv6KAk="
             }
           },
           "ExpireDashpendingDashpaymentsEventsRuleSchedule1": {
@@ -496,28 +496,28 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersionIXzGT6gqVwjZzLq7awCQp5uZo7UGeE1IiEgFG8ucqs8"
+              "Ref": "ApiLambdaVersionmjFB19dFybdQAo58KsGTG8RmIdJCX2HP2cw6OjwI"
             },
             "Export": {
               "Name": "sls-reserwaya-back-prod-ApiLambdaFunctionQualifiedArn"
             }
           },
-          "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "ExpireDashpendingDashpaymentsLambdaVersionFiwUjpQoAmWEsm2Z1KFwCql5hjdJEIi0h5vJE4TxPQ"
-            },
-            "Export": {
-              "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
-            }
-          },
           "RepairDashtimeDashslotsLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "RepairDashtimeDashslotsLambdaVersionZ5z3hJ8lXIjRjJ3oUsPzBR73iXX3KAL3ZLlmLxsOLM"
+              "Ref": "RepairDashtimeDashslotsLambdaVersionfo6i5TyNma9JwzmTkOpTOXMC4zWm2SULJBP5M9H79E"
             },
             "Export": {
               "Name": "sls-reserwaya-back-prod-RepairDashtimeDashslotsLambdaFunctionQualifiedArn"
+            }
+          },
+          "ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn": {
+            "Description": "Current Lambda function version",
+            "Value": {
+              "Ref": "ExpireDashpendingDashpaymentsLambdaVersionAUnTx8dzheoIOIQXwuvMkMyvhqwOywPXM0jYalUvs"
+            },
+            "Export": {
+              "Name": "sls-reserwaya-back-prod-ExpireDashpendingDashpaymentsLambdaFunctionQualifiedArn"
             }
           },
           "HttpApiId": {
@@ -575,7 +575,7 @@
         "memory": 256,
         "runtime": "nodejs22.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersionIXzGT6gqVwjZzLq7awCQp5uZo7UGeE1IiEgFG8ucqs8"
+        "versionLogicalId": "ApiLambdaVersionmjFB19dFybdQAo58KsGTG8RmIdJCX2HP2cw6OjwI"
       },
       "expire-pending-payments": {
         "handler": "dist-lambda/scheduled.expiredPaymentsHandler",
@@ -591,7 +591,7 @@
         "memory": 256,
         "runtime": "nodejs22.x",
         "vpc": {},
-        "versionLogicalId": "ExpireDashpendingDashpaymentsLambdaVersionFiwUjpQoAmWEsm2Z1KFwCql5hjdJEIi0h5vJE4TxPQ"
+        "versionLogicalId": "ExpireDashpendingDashpaymentsLambdaVersionAUnTx8dzheoIOIQXwuvMkMyvhqwOywPXM0jYalUvs"
       },
       "repair-time-slots": {
         "handler": "dist-lambda/scheduled.repairTimeSlotsHandler",
@@ -607,7 +607,7 @@
         "memory": 256,
         "runtime": "nodejs22.x",
         "vpc": {},
-        "versionLogicalId": "RepairDashtimeDashslotsLambdaVersionZ5z3hJ8lXIjRjJ3oUsPzBR73iXX3KAL3ZLlmLxsOLM"
+        "versionLogicalId": "RepairDashtimeDashslotsLambdaVersionfo6i5TyNma9JwzmTkOpTOXMC4zWm2SULJBP5M9H79E"
       }
     },
     "configValidationMode": "warn",
@@ -630,7 +630,7 @@
         "artifactsS3KeyDirname": "serverless/reserwaya-back/prod/code-artifacts",
         "deploymentBucket": "serverless-framework-deployments-us-east-1-15c4e31f-edd0",
         "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip",
-        "artifactDirectoryName": "serverless/reserwaya-back/prod/1790561192557-2026-09-28T02:06:32.557Z"
+        "artifactDirectoryName": "serverless/reserwaya-back/prod/1791390501590-2026-10-07T16:28:21.590Z"
       }
     },
     "appId": null,
@@ -640,7 +640,7 @@
     "artifact": "/Users/davidgalvis/Documents/Software 1 2026-2/Codigo/Back/.serverless/reserwaya-back.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/reserwaya-back/prod/1790561192557-2026-09-28T02:06:32.557Z",
+    "artifactDirectoryName": "serverless/reserwaya-back/prod/1791390501590-2026-10-07T16:28:21.590Z",
     "artifact": "reserwaya-back.zip"
   }
 }

@@ -20,6 +20,7 @@ export class NoopIdentityGateway implements IdentityGateway {
     firstName?: string;
     lastName?: string;
     temporaryPassword: string;
+    persistentPassword?: boolean;
   }): Promise<{ sub: string }> {
     const sub = `${this.nextSub}`;
     this.nextSub = `kc-test-${Number(this.nextSub.split('-').pop()) + 1}`.padStart(9, '0');

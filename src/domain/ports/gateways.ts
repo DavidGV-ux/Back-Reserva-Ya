@@ -100,6 +100,7 @@ export interface IdentityGateway {
     firstName?: string;
     lastName?: string;
     temporaryPassword: string;
+    persistentPassword?: boolean;
   }): Promise<{ sub: string }>;
   findByEmail(email: string): Promise<IdentityUser | null>;
   findBySub(sub: string): Promise<IdentityUser | null>;
