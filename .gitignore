@@ -9,3 +9,4 @@ coverage/
 # credenciales nunca se versionan
 **/secrets.env
 **/*.pem
+.serverless/
