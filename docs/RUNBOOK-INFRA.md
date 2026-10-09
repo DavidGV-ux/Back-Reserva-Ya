@@ -77,7 +77,7 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 
 **Canal de alertas (SNS):**
 - Topic: `arn:aws:sns:us-east-1:888503972797:reserwaya-back-prod-alerts`
-- Suscriptores actuales: ginaplazasgutierrez@gmail.com
+- Suscriptores actuales: 1 correo personal del equipo de infraestructura (no se documenta aquí por ser un repositorio público)
 - Para agregar a alguien más: `aws sns subscribe --topic-arn <arn> --protocol email --notification-endpoint <correo> --region us-east-1` (usar correo personal, no institucional — los filtros de seguridad de algunos correos institucionales cancelan la suscripción automáticamente al escanear el link de confirmación)
 
 **Alarmas activas (Lambda `reserwaya-back-prod-api`):**
@@ -97,6 +97,7 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 - La alarma `reserwaya-back-prod-api-throttles` se disparó con un evento real y el correo de SNS llegó a los pocos minutos: queda verificado el flujo completo alarma → SNS → correo.
 - Detalle del evento: 14 invocaciones de `api` entre las 14:30 y las 14:35 (UTC-5), 1 con throttle. A las 14:33 la concurrencia total de la cuenta llegó a 10 (el límite). Duró un minuto y no se repitió.
 - No se determinó qué funciones consumieron el cupo en ese momento.
+- Aviso de recuperación verificado (2026-10-08): al configurar `ok-actions` y `treat-missing-data notBreaching`, las 3 alarmas pasaron a OK y llegaron 3 correos de SNS, lo que confirma que las acciones de OK funcionan.
 
 **Límite de concurrencia de la cuenta:**
 - `ConcurrentExecutions: 10`, compartido entre las 31 funciones Lambda de la cuenta (ReservaYa y otros proyectos).
@@ -114,10 +115,9 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 8. Avisar en el chat del equipo, sin importar si ya se resolvió — para que quede registro
 
 **Limitaciones conocidas:**
-- Las alarmas solo avisan al entrar en ALARM; no tienen `ok-actions`, por lo que no llega aviso de recuperación.
+- Las alarmas avisan al entrar en ALARM y al volver a OK. Configuradas con treat-missing-data notBreaching (2026-10-08) para que la ausencia de datos cuente como OK; sin eso, errors y throttles quedarían en INSUFFICIENT_DATA y no enviarían aviso de recuperación.
 
 **Pendiente:**
-- Agregar `--ok-actions` a las 3 alarmas (aviso de recuperación)
 - Alarma de mensajes SQS visibles (aplica cuando se conecte la integración con WhatsApp IA — no existe cola SQS activa todavía)
 - Logs estructurados (formato JSON consistente) en el código del Back
 - Replicar este mismo monitoreo para la Lambda `export-backup-r2` una vez desplegada
