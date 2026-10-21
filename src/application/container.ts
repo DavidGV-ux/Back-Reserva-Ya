@@ -12,6 +12,7 @@ import {
   TenantRepository,
   TenantUserRepository,
   TimeSlotRepository,
+  UserProfileRepository,
 } from '../domain/ports/repositories';
 import { NotificationGateway, PaymentGatewayProvider, IdentityGateway } from '../domain/ports/gateways';
 import { UnitOfWork } from '../domain/ports/unit-of-work';
@@ -21,9 +22,12 @@ import { CatalogUseCases } from './usecases/catalog/catalog.usecases';
 import { AvailabilityUseCases } from './usecases/booking/availability.usecases';
 import { BookingUseCases } from './usecases/booking/booking.usecases';
 import { PaymentsUseCases } from './usecases/payments/payments.usecases';
+import { PaymentSessionUseCases } from './usecases/payments/payment-session.usecases';
 import { HistoryUseCases } from './usecases/dashboard/history.usecases';
 import { DashboardUseCases } from './usecases/dashboard/dashboard.usecases';
 import { NotificationsUseCases } from './usecases/notifications/notifications.usecases';
+import { WhatsappUseCases } from './usecases/whatsapp/whatsapp.usecases';
+import { ProfileUseCases } from './usecases/profile/profile.usecases';
 
 export interface AppDependencies {
   repos: {
@@ -39,12 +43,17 @@ export interface AppDependencies {
     notifications: NotificationRepository;
     tenantUsers: TenantUserRepository;
     platformUsers: PlatformUserRepository;
+    userProfiles: UserProfileRepository;
     audit: AuditLogRepository;
   };
   uow: UnitOfWork;
   paymentGateway: PaymentGatewayProvider;
   notificationGateway: NotificationGateway;
   identity: IdentityGateway;
+  settings: {
+    frontBaseUrl: string;
+    paymentSessionSecret: string;
+  };
 }
 
 export class AppServices {
@@ -54,9 +63,13 @@ export class AppServices {
   readonly availability: AvailabilityUseCases;
   readonly booking: BookingUseCases;
   readonly payments: PaymentsUseCases;
+  readonly paymentSessions: PaymentSessionUseCases;
   readonly history: HistoryUseCases;
   readonly dashboard: DashboardUseCases;
   readonly notifications: NotificationsUseCases;
+  readonly whatsapp: WhatsappUseCases;
+  readonly profile: ProfileUseCases;
+  readonly identity: IdentityGateway;
 
   constructor(deps: AppDependencies) {
     this.tenants = new TenantsUseCases({
@@ -93,11 +106,28 @@ export class AppServices {
         appointments: deps.repos.appointments,
         timeSlots: deps.repos.timeSlots,
         availabilityBlocks: deps.repos.availabilityBlocks,
+        paymentTransactions: deps.repos.paymentTransactions,
       },
       deps.uow,
       deps.paymentGateway,
     );
-    this.payments = new PaymentsUseCases(deps.uow, deps.paymentGateway);
+    this.payments = new PaymentsUseCases(deps.uow, deps.paymentGateway, {
+      appointments: deps.repos.appointments,
+      tenants: deps.repos.tenants,
+      paymentTransactions: deps.repos.paymentTransactions,
+      availabilityBlocks: deps.repos.availabilityBlocks,
+      timeSlots: deps.repos.timeSlots,
+    });
+    this.paymentSessions = new PaymentSessionUseCases(
+      {
+        tenants: deps.repos.tenants,
+        appointments: deps.repos.appointments,
+        paymentTransactions: deps.repos.paymentTransactions,
+      },
+      deps.uow,
+      deps.paymentGateway,
+      { frontBaseUrl: deps.settings.frontBaseUrl, sessionSecret: deps.settings.paymentSessionSecret },
+    );
     this.history = new HistoryUseCases({
       tenants: deps.repos.tenants,
       appointments: deps.repos.appointments,
@@ -108,7 +138,16 @@ export class AppServices {
       ledger: deps.repos.ledger,
       tenantUsers: deps.repos.tenantUsers,
       availabilityBlocks: deps.repos.availabilityBlocks,
+      paymentTransactions: deps.repos.paymentTransactions,
     });
     this.notifications = new NotificationsUseCases(deps.repos.notifications, deps.notificationGateway);
+    this.whatsapp = new WhatsappUseCases({
+      tenants: deps.repos.tenants,
+      professionals: deps.repos.professionals,
+      appointments: deps.repos.appointments,
+      profiles: deps.repos.userProfiles,
+    });
+    this.profile = new ProfileUseCases({ userProfiles: deps.repos.userProfiles });
+    this.identity = deps.identity;
   }
 }

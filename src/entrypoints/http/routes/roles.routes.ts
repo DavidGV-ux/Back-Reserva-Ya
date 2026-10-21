@@ -52,6 +52,11 @@ const inviteProfessionalSchema = z.object({
   weeklySchedule: z.record(z.string(), z.array(z.object({ start: z.string(), end: z.string() }))).optional(),
 });
 
+const profileSchema = z.object({
+  phone: z.string().min(7, 'teléfono requerido'),
+  city: z.string().optional(),
+});
+
 export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): Router {
   const router = Router();
 
@@ -60,8 +65,64 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/me/tenants',
     requireAuth(verifier),
     asyncRoute(async (req, res) => {
-      const tenants = await services.tenants.myTenants({ keycloakUserId: req.principal!.sub });
+      const rawRole = typeof req.query.role === 'string' ? req.query.role : undefined;
+      const role =
+        rawRole === 'owner' || rawRole === 'professional' || rawRole === 'client'
+          ? rawRole
+          : undefined;
+      const tenants = await services.tenants.myTenants({
+        keycloakUserId: req.principal!.sub,
+        role,
+      });
       res.json(tenants);
+    }),
+  );
+
+  router.get(
+    '/me/appointments',
+    requireAuth(verifier),
+    asyncRoute(async (req, res) => {
+      const appointments = await services.history.historyByClient({ clientId: req.principal!.sub });
+      res.json(appointments);
+    }),
+  );
+
+  // Perfil complementario del usuario (teléfono + ciudad): se captura tras el
+  // registro y habilita el acceso por WhatsApp (el bot invita al usuario).
+  router.get(
+    '/me/profile',
+    requireAuth(verifier),
+    asyncRoute(async (req, res) => {
+      const profile = await services.profile.get(req.principal!.sub);
+      res.json({ profile: profile ?? null });
+    }),
+  );
+
+  router.put(
+    '/me/profile',
+    requireAuth(verifier),
+    asyncRoute(async (req, res) => {
+      const parsed = profileSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError('invalid profile payload', { issues: parsed.error.issues });
+      }
+      const saved = await services.profile.save({
+        keycloakUserId: req.principal!.sub,
+        phone: parsed.data.phone,
+        city: parsed.data.city,
+        name: req.principal!.name,
+        email: req.principal!.email,
+      });
+      res.json({ profile: saved });
+    }),
+  );
+
+  router.delete(
+    '/me/profile',
+    requireAuth(verifier),
+    asyncRoute(async (req, res) => {
+      await services.profile.remove(req.principal!.sub);
+      res.status(204).end();
     }),
   );
 
@@ -74,6 +135,47 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     asyncRoute(async (req, res) => {
       const overview = await services.dashboard.ownerOverview(param(req, 'tenantId'), req.principal!.sub);
       res.json(overview);
+    }),
+  );
+
+  router.get(
+    '/owner/:tenantId/appointments',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : undefined;
+      const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : undefined;
+      const result = await services.dashboard.ownerAppointments({
+        tenantId: param(req, 'tenantId'),
+        from,
+        to,
+      });
+      res.json(result);
+    }),
+  );
+
+  router.post(
+    '/owner/:tenantId/appointments/:appointmentId/status',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const status = typeof req.body?.status === 'string' ? req.body.status : undefined;
+      const version = Number(req.body?.version);
+      const allowed = ['completed', 'no_show'];
+      if (!allowed.includes(status ?? '')) {
+        throw new ValidationError(`status must be one of: ${allowed.join(', ')}`);
+      }
+      if (!Number.isInteger(version)) throw new ValidationError('version is required');
+      const row = await services.dashboard.ownerSetStatus({
+        tenantId: param(req, 'tenantId'),
+        appointmentId: param(req, 'appointmentId'),
+        status: status as 'completed' | 'no_show',
+        version,
+        actor: req.principal!.sub,
+      });
+      res.json(row);
     }),
   );
 
@@ -272,7 +374,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/professional/:tenantId/agenda',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['professional', 'owner']),
+    requireTenantMembership(services, ['professional']),
     asyncRoute(async (req, res) => {
       const from = requiredStr(req.query.from);
       const to = requiredStr(req.query.to);
@@ -293,7 +395,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/professional/:tenantId/availability/blocks',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['professional', 'owner']),
+    requireTenantMembership(services, ['professional']),
     asyncRoute(async (req, res) => {
       const parsed = blockSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError('invalid block', { issues: parsed.error.issues });
@@ -317,7 +419,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/client/:tenantId/appointments',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['client', 'owner']),
+    requireTenantMembership(services, ['client']),
     asyncRoute(async (req, res) => {
       const appointments = await services.history.clientAppointments({
         tenantId: param(req, 'tenantId'),

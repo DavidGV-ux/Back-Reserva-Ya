@@ -77,23 +77,47 @@ export class TenantsUseCases {
   /**
    * Tenants a los que el usuario pertenece (con rol dentro de cada tenant).
    * Sirve a la app para resolver el contexto sin depender de claims de IdP.
+   * Con `role` se filtra para devolver SOLO los negocios donde el usuario
+   * tiene ese rol concreto: así cada panel ve exclusivamente su asociación
+   * (dueño → solo negocios que administra; profesional → solo negocios donde
+   * trabaja; cliente → solo negocios donde es cliente).
    */
   async myTenants(input: {
     keycloakUserId: string;
-  }): Promise<Array<{ tenantId: string; slug: string; name: string; role: string }>> {
+    role?: 'owner' | 'professional' | 'client';
+  }): Promise<Array<{ tenantId: string; slug: string; name: string; role: string; roles: string[] }>> {
     const memberships = await this.repos.tenantUsers.findByIdentity(input.keycloakUserId);
-    const active = memberships.filter((m) => m.status === 'active');
-    const rows: Array<{ tenantId: string; slug: string; name: string; role: string }> = [];
+    const scoped = input.role
+      ? memberships.filter((m) => m.role === input.role)
+      : memberships;
+    const active = scoped.filter((m) => m.status === 'active');
+    // Una sola fila por negocio: agrega todos los roles del usuario en ese tenant
+    // (p. ej. puede ser dueño y además cliente o profesional) y usa el "mejor" rol
+    // como primario para las vistas.
+    const ROLE_PRIORITY: Record<string, number> = { owner: 0, professional: 1, client: 2 };
+    const byTenant = new Map<string, { slug: string; name: string; roles: Set<string> }>();
     for (const m of active) {
-      const tenant = await this.repos.tenants.findById(m.tenantId);
+      const row = byTenant.get(m.tenantId) ?? { slug: m.tenantId, name: m.tenantId, roles: new Set<string>() };
+      row.roles.add(m.role);
+      byTenant.set(m.tenantId, row);
+    }
+    const rows: Array<{ tenantId: string; slug: string; name: string; role: string; roles: string[] }> = [];
+    for (const [tenantId, row] of byTenant) {
+      const tenant = await this.repos.tenants.findById(tenantId);
+      const roles = [...row.roles].sort((a, b) => (ROLE_PRIORITY[a] ?? 99) - (ROLE_PRIORITY[b] ?? 99));
       rows.push({
-        tenantId: m.tenantId,
-        slug: tenant?.slug ?? m.tenantId,
-        name: tenant?.name ?? m.tenantId,
-        role: m.role,
+        tenantId,
+        slug: tenant?.slug ?? row.slug,
+        name: tenant?.name ?? row.name,
+        role: roles[0] ?? 'client',
+        roles,
       });
     }
-    return rows;
+    return rows.sort(
+      (a, b) =>
+        (ROLE_PRIORITY[a.role] ?? 99) - (ROLE_PRIORITY[b.role] ?? 99) ||
+        a.name.localeCompare(b.name),
+    );
   }
 
   /**
@@ -142,9 +166,11 @@ export class TenantsUseCases {
     name: string;
     tagline?: string;
     description?: string;
+    category?: Tenant['category'];
     timezone?: string;
     currency: 'COP' | 'USD';
     country?: string;
+    city?: string;
     planCode: string;
     address?: string;
     phone?: string;
@@ -177,6 +203,8 @@ export class TenantsUseCases {
       timezone: input.timezone ?? 'America/Bogota',
       currency: input.currency,
       country: input.country,
+      category: input.category,
+      city: input.city,
       address: input.address,
       phone: input.phone,
       logoUrl: input.logoUrl,

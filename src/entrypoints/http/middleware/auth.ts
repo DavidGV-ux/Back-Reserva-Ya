@@ -59,12 +59,25 @@ export function requireTenantHeader(req: Request, _res: Response, next: NextFunc
 export function requireTenantMembership(services: AppServices, roles: Array<'owner' | 'professional' | 'client'>) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      if (!req.principal || !req.tenantId) throw new ForbiddenError();
+      if (!req.principal) throw new ForbiddenError();
+      const pathTenantId =
+        typeof req.params.tenantId === 'string' && req.params.tenantId ? req.params.tenantId : undefined;
+      if (req.tenantId && pathTenantId && req.tenantId !== pathTenantId) {
+        throw new ForbiddenError(
+          `x-tenant-id header (${req.tenantId}) does not match the tenant in the path (${pathTenantId})`,
+        );
+      }
+      const tenantId = pathTenantId ?? req.tenantId;
+      if (!tenantId) throw new ForbiddenError('tenant could not be resolved');
+      // La membresía se valida contra el tenantId que se usa para consultar datos
+      // (path cuando existe), para que un usuario no pueda leer otro negocio
+      // con un header ajeno.
       await services.tenants.assertTenantMembership({
-        tenantId: req.tenantId,
+        tenantId,
         keycloakUserId: req.principal.sub,
         roles,
       });
+      req.tenantId = tenantId;
       next();
     } catch (err) {
       next(err);
