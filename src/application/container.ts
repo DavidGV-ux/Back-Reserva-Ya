@@ -28,6 +28,7 @@ import { DashboardUseCases } from './usecases/dashboard/dashboard.usecases';
 import { NotificationsUseCases } from './usecases/notifications/notifications.usecases';
 import { WhatsappUseCases } from './usecases/whatsapp/whatsapp.usecases';
 import { ProfileUseCases } from './usecases/profile/profile.usecases';
+import { env } from '../config/env';
 
 export interface AppDependencies {
   repos: {
@@ -72,6 +73,15 @@ export class AppServices {
   readonly identity: IdentityGateway;
 
   constructor(deps: AppDependencies) {
+    this.notifications = new NotificationsUseCases(
+      deps.repos.notifications,
+      deps.notificationGateway,
+      {
+        tenants: deps.repos.tenants,
+        appointments: deps.repos.appointments,
+        fallbackDelayMs: env.notificationFallbackDelayMs,
+      },
+    );
     this.tenants = new TenantsUseCases({
       tenants: deps.repos.tenants,
       plans: deps.repos.plans,
@@ -110,14 +120,20 @@ export class AppServices {
       },
       deps.uow,
       deps.paymentGateway,
+      this.notifications,
     );
-    this.payments = new PaymentsUseCases(deps.uow, deps.paymentGateway, {
-      appointments: deps.repos.appointments,
-      tenants: deps.repos.tenants,
-      paymentTransactions: deps.repos.paymentTransactions,
-      availabilityBlocks: deps.repos.availabilityBlocks,
-      timeSlots: deps.repos.timeSlots,
-    });
+    this.payments = new PaymentsUseCases(
+      deps.uow,
+      deps.paymentGateway,
+      {
+        appointments: deps.repos.appointments,
+        tenants: deps.repos.tenants,
+        paymentTransactions: deps.repos.paymentTransactions,
+        availabilityBlocks: deps.repos.availabilityBlocks,
+        timeSlots: deps.repos.timeSlots,
+      },
+      this.notifications,
+    );
     this.paymentSessions = new PaymentSessionUseCases(
       {
         tenants: deps.repos.tenants,
@@ -140,7 +156,6 @@ export class AppServices {
       availabilityBlocks: deps.repos.availabilityBlocks,
       paymentTransactions: deps.repos.paymentTransactions,
     });
-    this.notifications = new NotificationsUseCases(deps.repos.notifications, deps.notificationGateway);
     this.whatsapp = new WhatsappUseCases({
       tenants: deps.repos.tenants,
       professionals: deps.repos.professionals,
