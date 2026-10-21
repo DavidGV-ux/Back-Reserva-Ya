@@ -2,13 +2,19 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
 import { Db, Decimal128, MongoClient } from 'mongodb';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { createRepos } from '../../src/infrastructure/persist/mongo/repositories/repo-factory';
 import { MongoUnitOfWork } from '../../src/infrastructure/persist/mongo/unit-of-work';
 import { ensureExtraIndexes } from '../../src/infrastructure/persist/mongo/repositories/base';
 import { AppServices } from '../../src/application/container';
 import { MockPaymentGateway } from '../../src/infrastructure/integrations/payments/mock-payment';
 import { MockNotificationGateway } from '../../src/infrastructure/integrations/notifications/mock-notifications';
-import { IdentityGateway, IdentityUser } from '../../src/domain/ports/gateways';
+import {
+  IdentityGateway,
+  IdentityUser,
+  PaymentGatewayProvider,
+  NotificationGateway,
+} from '../../src/domain/ports/gateways';
 
 export class NoopIdentityGateway implements IdentityGateway {
   readonly provider = 'noop';
@@ -20,6 +26,7 @@ export class NoopIdentityGateway implements IdentityGateway {
     firstName?: string;
     lastName?: string;
     temporaryPassword: string;
+    persistentPassword?: boolean;
   }): Promise<{ sub: string }> {
     const sub = `${this.nextSub}`;
     this.nextSub = `kc-test-${Number(this.nextSub.split('-').pop()) + 1}`.padStart(9, '0');
@@ -41,12 +48,42 @@ export interface TestDb {
   stop: () => Promise<void>;
 }
 
-let shared: TestDb | null = null;
+export interface TestDbOptions {
+  paymentGateway?: PaymentGatewayProvider;
+  notificationGateway?: NotificationGateway;
+}
 
-export async function testDb(): Promise<TestDb> {
-  if (shared) return shared;
+const cache = new Map<string, TestDb>();
+let memoryReplSet: MongoMemoryReplSet | null = null;
 
-  const uri = process.env.MONGODB_URI_TEST ?? 'mongodb://localhost:27017/reservaya_test';
+async function resolveTestMongoUri(): Promise<string> {
+  if (process.env.MONGODB_URI_TEST) {
+    return process.env.MONGODB_URI_TEST;
+  }
+  if (memoryReplSet) {
+    return `${memoryReplSet.getUri().replace(/\/(\?|$)/, '/reservaya_test$1')}`;
+  }
+  const defaultUri = 'mongodb://localhost:27017/reservaya_test';
+  const probe = new MongoClient(defaultUri, { serverSelectionTimeoutMS: 1200 });
+  try {
+    await probe.connect();
+    await probe.close();
+    return defaultUri;
+  } catch {
+    await probe.close().catch(() => undefined);
+    memoryReplSet = await MongoMemoryReplSet.create({
+      replSet: { name: 'rs0', count: 1 },
+    });
+    return `${memoryReplSet.getUri().replace(/\/(\?|$)/, '/reservaya_test$1')}`;
+  }
+}
+
+export async function testDb(options?: TestDbOptions): Promise<TestDb> {
+  const key = `${options?.paymentGateway?.name ?? 'mock'}-${options?.notificationGateway?.channel ?? 'whatsapp'}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const uri = await resolveTestMongoUri();
   const client = new MongoClient(uri);
   await client.connect();
   const db = client.db();
@@ -60,22 +97,27 @@ export async function testDb(): Promise<TestDb> {
   const services = new AppServices({
     repos,
     uow,
-    paymentGateway: new MockPaymentGateway(),
-    notificationGateway: new MockNotificationGateway(),
+    paymentGateway: options?.paymentGateway ?? new MockPaymentGateway(),
+    notificationGateway: options?.notificationGateway ?? new MockNotificationGateway(),
     identity: new NoopIdentityGateway(),
+    settings: {
+      frontBaseUrl: 'http://localhost:4200',
+      paymentSessionSecret: 'test-reservaya-payment-session-secret',
+    },
   });
 
-  shared = {
+  const ctx: TestDb = {
     client,
     db,
     repos,
     services,
     stop: async () => {
       await client.close();
-      shared = null;
+      cache.delete(key);
     },
   };
-  return shared;
+  cache.set(key, ctx);
+  return ctx;
 }
 
 export async function applySchema(db: Db): Promise<void> {

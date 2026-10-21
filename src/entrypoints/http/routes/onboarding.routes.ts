@@ -5,14 +5,17 @@ import { ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
 import { requireAuth } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
+import { TENANT_CATEGORIES } from '../../../domain/entities';
 
 const onboardingSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'kebab-case requerido'),
   name: z.string().min(1),
+  category: z.enum(TENANT_CATEGORIES).optional(),
   tagline: z.string().optional(),
   description: z.string().optional(),
   timezone: z.string().optional(),
   country: z.string().optional(),
+  city: z.string().optional(),
   currency: z.enum(['COP', 'USD']).default('COP'),
   phone: z.string().optional(),
   address: z.string().optional(),
@@ -50,10 +53,12 @@ export function onboardingRouter(services: AppServices, verifier: KeycloakVerifi
         },
         slug: body.slug,
         name: body.name,
+        category: body.category,
         tagline: body.tagline,
         description: body.description,
         timezone: body.timezone,
         country: body.country,
+        city: body.city,
         currency: body.currency,
         phone: body.phone,
         address: body.address,

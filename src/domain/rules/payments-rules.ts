@@ -1,4 +1,5 @@
 import { Appointment, LedgerEntry, PaymentTransaction } from '../entities';
+import { Currency } from '../entities/types';
 import { money } from '../../shared/money';
 
 export interface LedgerBuildInput {
@@ -79,4 +80,33 @@ export function buildLedgerForRefund(input: LedgerBuildInput): LedgerEntry[] {
     timestamp: now,
   };
   return [refundEntry];
+}
+
+export function buildLedgerForRejectedPayment(input: {
+  transaction?: PaymentTransaction;
+  appointment: Appointment;
+  actor?: string;
+}): LedgerEntry[] {
+  const { transaction, appointment } = input;
+  const now = new Date().toISOString();
+  const rejectedEntry: LedgerEntry = {
+    id: '',
+    tenantId: appointment.tenantId,
+    transactionId: `led-${appointment.paymentReference ?? appointment.id}-rejected`,
+    appointmentId: appointment.id,
+    paymentTransactionId: transaction?.id,
+    paymentReference: transaction?.internalReference ?? appointment.paymentReference,
+    type: 'payment_rejected',
+    account: 'payment_event',
+    direction: 'neutral',
+    amount: 0,
+    currency: transaction?.currency ?? appointment.serviceSnapshot.currency as Currency,
+    status: 'posted',
+    idempotencyKey: `${appointment.paymentReference ?? appointment.id}-rejected`,
+    source: 'payment',
+    sourceEventId: transaction?.providerEventId,
+    metadata: input.actor ? { actor: input.actor } : undefined,
+    timestamp: now,
+  };
+  return [rejectedEntry];
 }
