@@ -11,8 +11,8 @@ describe('computeAdvance', () => {
       service: { id: 's1', name: 'Corte', price: 55000, currency: 'COP', durationMinutes: 75 },
       plan: { code: 'pro', commissionRate: 0.05 },
       tenantSettings: { advancePaymentPercentage: 30 },
-    });
-    expect(advance).toBe(16501);
+    );
+    expect(advance).toBe(16500);
   });
 });
 
