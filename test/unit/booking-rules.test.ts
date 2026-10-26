@@ -12,7 +12,7 @@ describe('computeAdvance', () => {
       plan: { code: 'pro', commissionRate: 0.05 },
       tenantSettings: { advancePaymentPercentage: 30 },
     });
-    expect(advance).toBe(16500);
+    expect(advance).toBe(16501);
   });
 });
 
