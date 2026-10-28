@@ -16,14 +16,15 @@ export class ProfileUseCases {
   }
 
   /**
-   * Guarda (o actualiza) el teléfono y la ciudad del usuario y, si es la primera
-   * vez (aún no ha recibido la invitación de WhatsApp), pide al bot que le envíe
-   * el mensaje de bienvenida al servicio.
+   * Guarda (o actualiza) el teléfono del usuario y, si es la primera vez (aún
+   * no ha recibido la invitación de WhatsApp), pide al bot que le envíe el
+   * mensaje de bienvenida al servicio. El teléfono es el que dispara el envío;
+   * la ciudad es opcional (solo personaliza el saludo).
    */
   async save(input: {
     keycloakUserId: string;
     phone: string;
-    city: string;
+    city?: string;
     name?: string;
     email?: string;
   }): Promise<UserProfile> {
@@ -32,9 +33,6 @@ export class ProfileUseCases {
       throw new ValidationError('phone is not a valid E.164 number', { phone: input.phone });
     }
     const city = String(input.city ?? '').trim();
-    if (!city) {
-      throw new ValidationError('city is required');
-    }
     const phoneDigits = phone.replace(/[^0-9]/g, '');
     const existing = await this.repos.userProfiles.findByKeycloakUserId(input.keycloakUserId);
 

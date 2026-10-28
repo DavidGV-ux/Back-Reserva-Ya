@@ -67,6 +67,7 @@ function statusFor(code: string): number {
     case 'KEYCLOAK_USER_LINKED':
     case 'PLAN_EXISTS':
     case 'TENANT_ALREADY_HAS_OWNER':
+    case 'EMAIL_TAKEN':
       return 409;
     case 'VALIDATION_ERROR':
       return 422;

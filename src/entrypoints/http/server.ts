@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { BootContext, bootstrap } from '../../infrastructure/bootstrap';
 import { publicRouter } from './routes/public.routes';
+import { authRouter } from './routes/auth.routes';
 import { publicPaymentsRouter } from './routes/public-payments.routes';
 import { rolesRouter } from './routes/roles.routes';
 import { adminRouter } from './routes/admin.routes';
@@ -31,6 +32,7 @@ export async function buildApp(boot: BootContext) {
   });
 
   app.use('/api/public', publicRouter(boot.services, boot.verifier));
+  app.use('/api/public/auth', authRouter(boot.services));
   app.use('/api/public', publicPaymentsRouter(boot.services));
   app.use('/api/onboarding', onboardingRouter(boot.services, boot.verifier));
   app.use('/api', rolesRouter(boot.services, boot.verifier));

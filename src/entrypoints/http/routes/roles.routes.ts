@@ -54,7 +54,7 @@ const inviteProfessionalSchema = z.object({
 
 const profileSchema = z.object({
   phone: z.string().min(7, 'teléfono requerido'),
-  city: z.string().min(1, 'ciudad requerida'),
+  city: z.string().optional(),
 });
 
 export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): Router {
@@ -65,7 +65,15 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/me/tenants',
     requireAuth(verifier),
     asyncRoute(async (req, res) => {
-      const tenants = await services.tenants.myTenants({ keycloakUserId: req.principal!.sub });
+      const rawRole = typeof req.query.role === 'string' ? req.query.role : undefined;
+      const role =
+        rawRole === 'owner' || rawRole === 'professional' || rawRole === 'client'
+          ? rawRole
+          : undefined;
+      const tenants = await services.tenants.myTenants({
+        keycloakUserId: req.principal!.sub,
+        role,
+      });
       res.json(tenants);
     }),
   );
@@ -366,7 +374,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/professional/:tenantId/agenda',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['professional', 'owner']),
+    requireTenantMembership(services, ['professional']),
     asyncRoute(async (req, res) => {
       const from = requiredStr(req.query.from);
       const to = requiredStr(req.query.to);
@@ -387,7 +395,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/professional/:tenantId/availability/blocks',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['professional', 'owner']),
+    requireTenantMembership(services, ['professional']),
     asyncRoute(async (req, res) => {
       const parsed = blockSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError('invalid block', { issues: parsed.error.issues });
@@ -411,7 +419,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     '/client/:tenantId/appointments',
     requireAuth(verifier),
     requireTenantHeader,
-    requireTenantMembership(services, ['client', 'owner']),
+    requireTenantMembership(services, ['client']),
     asyncRoute(async (req, res) => {
       const appointments = await services.history.clientAppointments({
         tenantId: param(req, 'tenantId'),

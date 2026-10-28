@@ -77,12 +77,20 @@ export class TenantsUseCases {
   /**
    * Tenants a los que el usuario pertenece (con rol dentro de cada tenant).
    * Sirve a la app para resolver el contexto sin depender de claims de IdP.
+   * Con `role` se filtra para devolver SOLO los negocios donde el usuario
+   * tiene ese rol concreto: así cada panel ve exclusivamente su asociación
+   * (dueño → solo negocios que administra; profesional → solo negocios donde
+   * trabaja; cliente → solo negocios donde es cliente).
    */
   async myTenants(input: {
     keycloakUserId: string;
+    role?: 'owner' | 'professional' | 'client';
   }): Promise<Array<{ tenantId: string; slug: string; name: string; role: string; roles: string[] }>> {
     const memberships = await this.repos.tenantUsers.findByIdentity(input.keycloakUserId);
-    const active = memberships.filter((m) => m.status === 'active');
+    const scoped = input.role
+      ? memberships.filter((m) => m.role === input.role)
+      : memberships;
+    const active = scoped.filter((m) => m.status === 'active');
     // Una sola fila por negocio: agrega todos los roles del usuario en ese tenant
     // (p. ej. puede ser dueño y además cliente o profesional) y usa el "mejor" rol
     // como primario para las vistas.

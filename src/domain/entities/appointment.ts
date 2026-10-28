@@ -51,6 +51,7 @@ export interface Appointment {
   source: AppointmentSource;
   paymentReference?: string;
   latestPaymentTransactionId?: string;
+  paidAmount?: number;
   clientInfo: ClientInfo;
   startTime: string;
   endTime: string;

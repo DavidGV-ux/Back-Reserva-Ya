@@ -69,6 +69,7 @@ export class AppServices {
   readonly notifications: NotificationsUseCases;
   readonly whatsapp: WhatsappUseCases;
   readonly profile: ProfileUseCases;
+  readonly identity: IdentityGateway;
 
   constructor(deps: AppDependencies) {
     this.tenants = new TenantsUseCases({
@@ -137,6 +138,7 @@ export class AppServices {
       ledger: deps.repos.ledger,
       tenantUsers: deps.repos.tenantUsers,
       availabilityBlocks: deps.repos.availabilityBlocks,
+      paymentTransactions: deps.repos.paymentTransactions,
     });
     this.notifications = new NotificationsUseCases(deps.repos.notifications, deps.notificationGateway);
     this.whatsapp = new WhatsappUseCases({
@@ -146,5 +148,6 @@ export class AppServices {
       profiles: deps.repos.userProfiles,
     });
     this.profile = new ProfileUseCases({ userProfiles: deps.repos.userProfiles });
+    this.identity = deps.identity;
   }
 }
