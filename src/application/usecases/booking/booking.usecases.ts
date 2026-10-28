@@ -1,4 +1,4 @@
-import { ConflictError, DomainError, NotFoundError, ValidationError } from '../../../shared/errors';
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { Appointment, AvailabilityBlock, BookingIntent, ClientInfo } from '../../../domain/entities';
 import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository, PaymentTransactionRepository } from '../../../domain/ports/repositories';
 import { PaymentGatewayProvider } from '../../../domain/ports/gateways';
@@ -397,9 +397,14 @@ export class BookingUseCases {
     requestedBy: CancellationRequestedBy;
     reason?: string;
     actor: string;
+    /** Si se indica, la cita debe pertenecer a este profesional (cancelación desde su agenda). */
+    professionalId?: string;
   }): Promise<Appointment> {
     const appointment = await this.repos.appointments.findById(input.tenantId, input.appointmentId);
     if (!appointment) throw new NotFoundError('Appointment', input.appointmentId);
+    if (input.professionalId && appointment.professionalId !== input.professionalId) {
+      throw new ForbiddenError('appointment does not belong to this professional');
+    }
     if (['cancelled', 'completed', 'no_show', 'expired'].includes(appointment.status)) {
       throw new ConflictError('APPOINTMENT_TERMINAL', `appointment is already ${appointment.status}`);
     }
