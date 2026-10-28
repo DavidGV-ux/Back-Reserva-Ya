@@ -142,6 +142,8 @@ export interface PaymentTransactionRepository {
 export interface LedgerRepository {
   create(entry: LedgerEntry): Promise<LedgerEntry>;
   findByTenant(tenantId: string, limit?: number): Promise<LedgerEntry[]>;
+  /** Todos los asientos con timestamp en [from, to) (ISO), del más reciente al más antiguo. */
+  findByTenantRange(tenantId: string, from: string, to: string): Promise<LedgerEntry[]>;
   findByAppointment(tenantId: string, appointmentId: string): Promise<LedgerEntry[]>;
 }
 

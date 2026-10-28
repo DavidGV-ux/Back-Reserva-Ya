@@ -144,6 +144,17 @@ export class LedgerMongoRepository implements LedgerRepository {
     return docs.map((d) => ledgerToDomain(d));
   }
 
+  async findByTenantRange(tenantId: string, from: string, to: string): Promise<LedgerEntry[]> {
+    const docs = await this.collection
+      .find(
+        { tenant_id: tenantId, timestamp: { $gte: new Date(from), $lt: new Date(to) } },
+        { session: this.session },
+      )
+      .sort({ timestamp: -1 })
+      .toArray();
+    return docs.map((d) => ledgerToDomain(d));
+  }
+
   async findByAppointment(tenantId: string, appointmentId: string): Promise<LedgerEntry[]> {
     const docs = await this.collection
       .find({ tenant_id: tenantId, appointment_id: bsonId(appointmentId) }, { session: this.session })

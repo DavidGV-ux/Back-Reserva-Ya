@@ -351,6 +351,21 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     }),
   );
 
+  router.get(
+    '/owner/:tenantId/reports',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const report = await services.dashboard.ownerReport({
+        tenantId: param(req, 'tenantId'),
+        from: requiredStr(req.query.from),
+        to: requiredStr(req.query.to),
+      });
+      res.json(report);
+    }),
+  );
+
   router.post(
     '/owner/:tenantId/appointments/:appointmentId/cancel',
     requireAuth(verifier),

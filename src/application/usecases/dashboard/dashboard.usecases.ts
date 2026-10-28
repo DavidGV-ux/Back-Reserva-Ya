@@ -10,6 +10,20 @@ import {
   TenantUserRepository,
 } from '../../../domain/ports/repositories';
 import { addDaysUtc, todayUtcParts, utcLocalStartMs } from '../../../shared/timezone';
+import { buildOwnerReport, dayRange, OwnerReport } from '../../../domain/rules/report-rules';
+
+const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const MAX_REPORT_DAYS = 366;
+
+function parseDayKey(value: string, field: string): { year: number; month: number; day: number } {
+  if (!DAY_KEY_RE.test(value)) throw new ValidationError(`${field} must be YYYY-MM-DD`);
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    throw new ValidationError(`${field} is not a valid date`);
+  }
+  return { year, month, day };
+}
 
 export interface OwnerOverview {
   tenant: Tenant;
@@ -127,6 +141,41 @@ export class DashboardUseCases {
       movements,
       owner,
     };
+  }
+
+  /**
+   * Reporte de ingresos, comisión y reembolsos del owner entre dos días locales
+   * del negocio (`from` y `to` en YYYY-MM-DD, ambos inclusive).
+   */
+  async ownerReport(input: { tenantId: string; from: string; to: string }): Promise<OwnerReport> {
+    const fromParts = parseDayKey(input.from, 'from');
+    const toParts = parseDayKey(input.to, 'to');
+    if (input.from > input.to) throw new ValidationError('from must be before or equal to to');
+    if (dayRange(input.from, input.to).length > MAX_REPORT_DAYS) {
+      throw new ValidationError(`range cannot exceed ${MAX_REPORT_DAYS} days`);
+    }
+
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const startIso = new Date(
+      utcLocalStartMs(tenant.timezone, fromParts.year, fromParts.month, fromParts.day),
+    ).toISOString();
+    const endIso = new Date(addDaysUtc(tenant.timezone, toParts, 1).ms).toISOString();
+
+    const [movements, appointments] = await Promise.all([
+      this.repos.ledger.findByTenantRange(input.tenantId, startIso, endIso),
+      this.repos.appointments.listByTenant(input.tenantId, startIso, endIso),
+    ]);
+
+    return buildOwnerReport({
+      from: input.from,
+      to: input.to,
+      timeZone: tenant.timezone,
+      currency: tenant.currency,
+      movements,
+      appointments,
+    });
   }
 
   async professionalAgenda(input: {
