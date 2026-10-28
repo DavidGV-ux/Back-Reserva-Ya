@@ -6,7 +6,7 @@ import { ProfessionalMongoRepository, ServiceMongoRepository } from './catalog.r
 import { AppointmentMongoRepository } from './appointments.repo';
 import { AvailabilityBlockMongoRepository, TimeSlotMongoRepository } from './availability.repo';
 import { LedgerMongoRepository, NotificationMongoRepository, PaymentTransactionMongoRepository } from './payments.repo';
-import { AuditLogMongoRepository, PlatformUserMongoRepository, TenantUserMongoRepository } from './users.repo';
+import { AuditLogMongoRepository, PlatformUserMongoRepository, TenantUserMongoRepository, UserProfileMongoRepository } from './users.repo';
 
 export function createRepos(db: Db, session?: ClientSession): AppDependencies['repos'] {
   return {
@@ -22,6 +22,7 @@ export function createRepos(db: Db, session?: ClientSession): AppDependencies['r
     notifications: new NotificationMongoRepository(db, session),
     tenantUsers: new TenantUserMongoRepository(db, session),
     platformUsers: new PlatformUserMongoRepository(db, session),
+    userProfiles: new UserProfileMongoRepository(db, session),
     audit: new AuditLogMongoRepository(db, session),
   };
 }

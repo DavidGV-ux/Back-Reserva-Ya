@@ -1,0 +1,50 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Lambda", "Invocations", "FunctionName", "reserwaya-back-prod-api", { "stat": "Sum", "label": "Invocaciones" }],
+          [".", "Errors", ".", ".", { "stat": "Sum", "label": "Errores" }]
+        ],
+        "period": 300,
+        "region": "us-east-1",
+        "title": "Invocaciones y Errores - api"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Lambda", "Duration", "FunctionName", "reserwaya-back-prod-api", { "stat": "Average", "label": "Duracion promedio (ms)" }]
+        ],
+        "period": 300,
+        "region": "us-east-1",
+        "title": "Duracion - api"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Lambda", "Throttles", "FunctionName", "reserwaya-back-prod-api", { "stat": "Sum", "label": "Throttles" }]
+        ],
+        "period": 300,
+        "region": "us-east-1",
+        "title": "Throttles - api"
+      }
+    }
+  ]
+}

@@ -74,6 +74,7 @@ function barberTenant(proPlan: Plan): Tenant {
     timezone: 'America/Bogota',
     currency: 'COP',
     country: 'CO',
+    category: 'beauty',
     phone: '+57 320 123 4567',
     address: 'Calle 23 # 45-12, Bogotá',
     settings: {
@@ -103,6 +104,7 @@ function clinicaTenant(basicoPlan: Plan): Tenant {
     timezone: 'America/Bogota',
     currency: 'COP',
     country: 'CO',
+    category: 'health',
     phone: '+57 310 200 3344',
     address: 'Cra 15 # 82-10, Bogotá',
     settings: {
