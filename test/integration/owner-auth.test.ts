@@ -111,8 +111,8 @@ describe('owner HTTP auth: path vs header, myTenants sort, single owner (integra
     const res = await request(app).get('/api/me/tenants').set('Authorization', 'Bearer TOKEN_OWNER');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
-      { tenantId: t1.tenantId, slug: 'barber-estilo', name: 'Barber Estilo', role: 'owner' },
-      { tenantId: t2.tenantId, slug: 'cafe-beta-prod', name: 'Café Beta', role: 'owner' },
+      { tenantId: t1.tenantId, slug: 'barber-estilo', name: 'Barber Estilo', role: 'owner', roles: ['owner'] },
+      { tenantId: t2.tenantId, slug: 'cafe-beta-prod', name: 'Café Beta', role: 'owner', roles: ['owner'] },
     ]);
   });
 

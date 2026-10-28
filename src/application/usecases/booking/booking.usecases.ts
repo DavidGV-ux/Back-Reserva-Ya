@@ -108,11 +108,8 @@ export class BookingUseCases {
       throw new ValidationError(`startTime must be aligned to ${granularity} minute slots`);
     }
 
-    const conflicts = await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
-    if (conflicts) {
-      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
-    }
-
+    // La repetición se resuelve antes que el cruce de horarios: si no, la cita original
+    // ocupa el slot y el reintento recibe un AVAILABILITY_CONFLICT falso.
     const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
     const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
     if (existing) {
@@ -126,6 +123,11 @@ export class BookingUseCases {
         }),
         replay: true,
       };
+    }
+
+    const conflicts = await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
+    if (conflicts) {
+      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
     }
 
     const clientInfo = clientInfoFrom(input.clientInfo);
