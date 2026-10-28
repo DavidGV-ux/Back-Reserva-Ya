@@ -4,8 +4,10 @@ import { ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
 import { optionalAuth } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
+import { publishAppointmentCreated } from '../whatsapp-events';
 import { z } from 'zod';
 import { param } from './params';
+import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
 
 const createAppointmentSchema = z.object({
   serviceId: z.string().min(1),
@@ -16,11 +18,19 @@ const createAppointmentSchema = z.object({
     name: z.string().min(1),
     phone: z.string().optional(),
     email: z.string().optional(),
+    documentId: z.string().optional(),
     habeasDataConsent: z.literal(true),
     habeasDataConsentAt: z.string().optional(),
   }),
   source: z.enum(['web', 'whatsapp', 'admin']).optional(),
   idempotencyKey: z.string().optional(),
+  payment: z
+    .object({
+      type: z.enum(['CARD', 'NEQUI', 'PSE']).optional(),
+      token: z.string().optional(),
+      installments: z.number().int().positive().optional(),
+    })
+    .optional(),
 });
 
 export function publicRouter(services: AppServices, verifier: KeycloakVerifier): Router {
@@ -83,6 +93,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
       const professionalId = requiredString(req.query.professionalId, 'professionalId');
       const date = requiredString(req.query.date, 'date');
       const durationMinutes = requiredInt(req.query.durationMinutes, 'durationMinutes');
+      const policy = resolveBookingPolicy(tenant);
       const slots = await services.availability.listSlots({
         tenantId: tenant.tenantId,
         professionalId,
@@ -90,6 +101,8 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         durationMinutes,
         timezone: tenant.timezone,
         granularityMinutes: tenant.settings.slotGranularityMinutes,
+        capacityMode: policy.mode === 'capacity',
+        capacity: policy.capacityPerSlot,
       });
       res.json(slots);
     }),
@@ -115,6 +128,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
           name: body.clientInfo.name,
           phone: body.clientInfo.phone,
           email: body.clientInfo.email,
+          documentId: body.clientInfo.documentId,
           habeasDataConsent: body.clientInfo.habeasDataConsent,
           habeasDataConsentAt: body.clientInfo.habeasDataConsentAt,
           ip: req.ip,
@@ -122,10 +136,26 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         },
         source: body.source,
         idempotencyKey: body.idempotencyKey,
+        payment: body.payment,
         actor: req.principal?.sub ?? 'web-anonymous',
       });
       if (clientId && result.appointment.tenantId === param(req, 'tenantId')) {
         await services.tenants.ensureClientMembership(result.appointment.tenantId, clientId);
+      }
+      if (!result.replay) {
+        void (async () => {
+          const tenant = await services.tenants
+            .getTenantById(result.appointment.tenantId)
+            .catch(() => undefined);
+          const professionals = await services.catalog
+            .listProfessionals(result.appointment.tenantId)
+            .catch(() => []);
+          await publishAppointmentCreated({
+            appointment: result.appointment,
+            tenant,
+            professional: professionals.find((p) => p.id === result.appointment.professionalId),
+          });
+        })();
       }
       res.status(result.replay ? 200 : 201).json(result);
     }),
@@ -141,6 +171,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         clientId: req.principal?.sub ?? (typeof req.query.clientId === 'string' ? req.query.clientId : undefined),
         phone: typeof req.query.phone === 'string' ? req.query.phone : undefined,
         email: typeof req.query.email === 'string' ? req.query.email : undefined,
+        documentId: typeof req.query.documentId === 'string' ? req.query.documentId : undefined,
       });
       res.json(appointments);
     }),
@@ -153,6 +184,17 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         param(req, 'tenantId'),
         param(req, 'appointmentId'),
       );
+      if (appointment.status === 'pending_payment' && appointment.paymentStatus === 'pending') {
+        const reconciled = await services.payments.reconcilePayment({
+          tenantId: param(req, 'tenantId'),
+          appointmentId: param(req, 'appointmentId'),
+          actor: 'web-anonymous',
+        });
+        if (reconciled.appointment) {
+          res.json(reconciled.appointment);
+          return;
+        }
+      }
       res.json(appointment);
     }),
   );

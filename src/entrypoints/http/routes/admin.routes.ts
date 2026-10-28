@@ -5,15 +5,18 @@ import { asyncRoute } from '../middleware/errors';
 import { requireAuth, requirePlatformAdmin } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
 import { z } from 'zod';
+import { TENANT_CATEGORIES } from '../../../domain/entities';
 
 const createTenantSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'kebab-case required'),
   tenantId: z.string().min(3),
   name: z.string().min(1),
+  category: z.enum(TENANT_CATEGORIES).optional(),
   currency: z.enum(['COP', 'USD']),
   planCode: z.string().min(1),
   timezone: z.string().optional(),
   country: z.string().optional(),
+  city: z.string().optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
   tagline: z.string().optional(),
@@ -23,6 +26,8 @@ const createTenantSchema = z.object({
       cancellationToleranceHours: z.number().optional(),
       upfrontPercent: z.number().optional(),
       slotGranularityMinutes: z.number().optional(),
+      bookingMode: z.enum(['exclusive', 'capacity']).optional(),
+      capacityPerSlot: z.number().int().min(1).max(500).optional(),
     })
     .optional(),
 });
@@ -70,6 +75,8 @@ export function adminRouter(services: AppServices, verifier: KeycloakVerifier): 
         planCode: body.planCode,
         timezone: body.timezone,
         country: body.country,
+        city: body.city,
+        category: body.category,
         address: body.address,
         phone: body.phone,
         tagline: body.tagline,
@@ -79,6 +86,8 @@ export function adminRouter(services: AppServices, verifier: KeycloakVerifier): 
             cancellationToleranceHours: body.settings?.cancellationToleranceHours,
             advancePaymentPercentage: body.settings?.upfrontPercent,
             slotGranularityMinutes: body.settings?.slotGranularityMinutes,
+            bookingMode: body.settings?.bookingMode,
+            capacityPerSlot: body.settings?.capacityPerSlot,
           }
           : undefined,
       });

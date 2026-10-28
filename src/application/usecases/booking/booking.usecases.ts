@@ -1,6 +1,6 @@
-import { ConflictError, DomainError, NotFoundError, ValidationError } from '../../../shared/errors';
-import { Appointment, AvailabilityBlock, BookingIntent } from '../../../domain/entities';
-import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository } from '../../../domain/ports/repositories';
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
+import { Appointment, AvailabilityBlock, BookingIntent, ClientInfo } from '../../../domain/entities';
+import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository, PaymentTransactionRepository } from '../../../domain/ports/repositories';
 import { PaymentGatewayProvider } from '../../../domain/ports/gateways';
 import { UnitOfWork } from '../../../domain/ports/unit-of-work';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../../../domain/rules/booking-rules';
 import { applyCancellationPolicy, buildCancellation } from '../../../domain/rules/cancellation-rules';
 import { weeklyScheduleForDay } from '../../../domain/rules/availability-rules';
+import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
 import { utcLocalStartMs } from '../../../shared/timezone';
 import { hexId, reference, uuid } from '../../../shared/id';
 import { CancellationRequestedBy, AppointmentStatus } from '../../../domain/entities/types';
@@ -33,6 +34,7 @@ export class BookingUseCases {
       appointments: AppointmentRepository;
       timeSlots: TimeSlotRepository;
       availabilityBlocks: AvailabilityBlockRepository;
+      paymentTransactions: PaymentTransactionRepository;
     },
     private readonly uow: UnitOfWork,
     private readonly gateway: PaymentGatewayProvider,
@@ -47,6 +49,7 @@ export class BookingUseCases {
       name: string;
       phone?: string;
       email?: string;
+      documentId?: string;
       habeasDataConsent: boolean;
       habeasDataConsentAt?: string;
       clientId?: string;
@@ -55,6 +58,7 @@ export class BookingUseCases {
     };
     source?: 'web' | 'whatsapp' | 'admin';
     idempotencyKey?: string;
+    payment?: { type?: 'CARD' | 'NEQUI' | 'PSE'; token?: string; installments?: number };
     actor: string;
   }): Promise<BookingResult> {
     const tenant = await this.repos.tenants.findById(input.tenantId);
@@ -81,6 +85,7 @@ export class BookingUseCases {
     const granularity = tenant.settings.slotGranularityMinutes;
     const durationMs = service.durationMinutes * 60_000;
     const endMs = startMs + durationMs;
+    const bookingPolicy = resolveBookingPolicy(tenant);
 
     const date = new Date(startMs);
     const dayStart = utcLocalStartMs(
@@ -105,40 +110,58 @@ export class BookingUseCases {
       throw new ValidationError(`startTime must be aligned to ${granularity} minute slots`);
     }
 
+    // La repetición se resuelve antes que el cruce de horarios: si no, la cita original
+    // ocupa el slot y el reintento recibe un AVAILABILITY_CONFLICT falso.
     const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
     const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
     if (existing) {
       return {
         appointment: existing,
-        intent: { advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }), currency: tenant.currency, paymentReference: existing.paymentReference ?? '' },
+        intent: await this.buildIntent({
+          tenantId: input.tenantId,
+          advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
+          currency: tenant.currency,
+          paymentReference: existing.paymentReference ?? '',
+        }),
         replay: true,
       };
+    }
+
+    const conflicts = bookingPolicy.mode === 'capacity'
+      ? await this.findCapacityConflict(
+          input.tenantId,
+          professional.id,
+          startMs,
+          endMs,
+          bookingPolicy.capacityPerSlot,
+        )
+      : await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
+    if (conflicts) {
+      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
     }
 
     const clientInfo = clientInfoFrom(input.clientInfo);
     const advanceAmount = computeAdvance({ service, plan, tenantSettings: tenant.settings });
     const paymentReference = reference('RSV');
 
-    // Double-check vs blocks and existing appointments before transaction (race is guarded by unique index on time_slots).
-    const conflicts = await this.repos.timeSlots.findOccupiedWithinRange(
-      input.tenantId,
-      professional.id,
-      new Date(startMs).toISOString(),
-      new Date(endMs).toISOString(),
-    );
-    if (conflicts.length > 0) {
-      throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
-    }
-
-    const charge = await this.gateway.createCharge({
-      tenantId: input.tenantId,
-      appointmentId: '',
-      internalReference: paymentReference,
-      amount: advanceAmount,
-      currency: tenant.currency,
-      idempotencyKey,
-      metadata: { serviceId: service.id, professionalId: professional.id },
-    });
+    const source = input.payment?.token
+      ? await this.chargeCardSource({
+          tenantId: input.tenantId,
+          internalReference: paymentReference,
+          advanceAmount,
+          currency: tenant.currency,
+          idempotencyKey,
+          serviceId: service.id,
+          professionalId: professional.id,
+          clientInfo,
+          payment: input.payment,
+        })
+      : await this.hostedIntentSource({
+          tenantId: input.tenantId,
+          internalReference: paymentReference,
+          advanceAmount,
+          currency: tenant.currency,
+        });
 
     const now = new Date().toISOString();
     const appointment: Appointment = {
@@ -169,7 +192,7 @@ export class BookingUseCases {
           tenantId: input.tenantId,
           appointmentId: created.id,
           provider: this.gateway.name,
-          providerTransactionId: charge.providerTransactionId,
+          providerTransactionId: source.kind === 'charge' ? source.providerTransactionId : undefined,
           internalReference: paymentReference,
           operation: 'charge',
           amount: advanceAmount,
@@ -179,20 +202,24 @@ export class BookingUseCases {
         },
         input.actor,
       );
-      const slotStarts: number[] = [];
-      for (let t = startMs; t < endMs; t += granularity * 60_000) slotStarts.push(t);
-      await tx.timeSlots.insertMany(
-        slotStarts.map((t, i) => ({
-          id: hexId(),
-          tenantId: input.tenantId,
-          professionalId: professional.id,
-          slotStart: new Date(t).toISOString(),
-          occupationType: 'appointment' as const,
-          appointmentId: created.id,
-          createdAt: now,
-          ...(i === 0 ? {} : { blockId: undefined }),
-        })),
-      );
+      // En modo capacidad compartida no se reservan time_slots por profesional:
+      // la concurrencia se controla contando reservas contra capacityPerSlot.
+      if (bookingPolicy.mode === 'exclusive') {
+        const slotStarts: number[] = [];
+        for (let t = startMs; t < endMs; t += granularity * 60_000) slotStarts.push(t);
+        await tx.timeSlots.insertMany(
+          slotStarts.map((t, i) => ({
+            id: hexId(),
+            tenantId: input.tenantId,
+            professionalId: professional.id,
+            slotStart: new Date(t).toISOString(),
+            occupationType: 'appointment' as const,
+            appointmentId: created.id,
+            createdAt: now,
+            ...(i === 0 ? {} : { blockId: undefined }),
+          })),
+        );
+      }
       return created;
     }).catch((err: unknown) => {
       if (isDuplicateKey(err)) {
@@ -203,8 +230,164 @@ export class BookingUseCases {
 
     return {
       appointment: result,
-      intent: { advanceAmount, currency: tenant.currency, paymentReference, providerTransactionId: charge.providerTransactionId },
+      intent: {
+        advanceAmount,
+        currency: tenant.currency,
+        paymentReference,
+        ...(source.kind === 'charge'
+          ? { providerTransactionId: source.providerTransactionId }
+          : {
+              chargeMode: source.chargeMode,
+              publicKey: source.publicKey,
+              amountInCents: source.amountInCents,
+              signatureIntegrity: source.signatureIntegrity,
+            }),
+      },
       replay: false,
+    };
+  }
+
+  /**
+   * En negocios de capacidad compartida (cafés, restaurantes), el límite no es
+   * el profesional sino el aforo del negocio en esa franja. Los bloqueos del
+   * profesional asignado sí se respetan.
+   */
+  private async findCapacityConflict(
+    tenantId: string,
+    professionalId: string,
+    startMs: number,
+    endMs: number,
+    capacity: number,
+  ): Promise<boolean> {
+    const from = new Date(startMs).toISOString();
+    const to = new Date(endMs).toISOString();
+    const [appointments, blocks] = await Promise.all([
+      this.repos.appointments.findOverlappingByTenant(tenantId, from, to),
+      this.repos.availabilityBlocks.findActiveByProfessional(tenantId, professionalId, from, to),
+    ]);
+    const overlaps = (s: number, e: number) => s < endMs && e > startMs;
+    if (blocks.some((b) => overlaps(new Date(b.startTime).getTime(), new Date(b.endTime).getTime()))) {
+      return true;
+    }
+    const concurrent = appointments.filter(
+      (a) => OCCUPIED_STATUSES.includes(a.status) &&
+        overlaps(new Date(a.startTime).getTime(), new Date(a.endTime).getTime()),
+    ).length;
+    return concurrent >= Math.max(1, capacity);
+  }
+
+  private async findOverlaps(
+    tenantId: string,
+    professionalId: string,
+    startMs: number,
+    endMs: number,
+  ): Promise<boolean> {
+    const [appointments, blocks] = await Promise.all([
+      this.repos.appointments.findOverlapping(
+        tenantId,
+        professionalId,
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+      ),
+      this.repos.availabilityBlocks.findActiveByProfessional(
+        tenantId,
+        professionalId,
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+      ),
+    ]);
+    const overlaps = (s: number, e: number) => s < endMs && e > startMs;
+    const apptConflict = appointments.some(
+      (a) => OCCUPIED_STATUSES.includes(a.status) &&
+        overlaps(new Date(a.startTime).getTime(), new Date(a.endTime).getTime()),
+    );
+    const blockConflict = blocks.some((b) =>
+      overlaps(new Date(b.startTime).getTime(), new Date(b.endTime).getTime()),
+    );
+    return apptConflict || blockConflict;
+  }
+
+  private async chargeCardSource(input: {
+    tenantId: string;
+    internalReference: string;
+    advanceAmount: number;
+    currency: string;
+    idempotencyKey: string;
+    serviceId: string;
+    professionalId: string;
+    clientInfo: ClientInfo;
+    payment: { type?: 'CARD' | 'NEQUI' | 'PSE'; token?: string; installments?: number };
+  }): Promise<{ kind: 'charge'; providerTransactionId: string }> {
+    const charge = await this.gateway.createCharge({
+      tenantId: input.tenantId,
+      appointmentId: '',
+      internalReference: input.internalReference,
+      amount: input.advanceAmount,
+      currency: input.currency,
+      idempotencyKey: input.idempotencyKey,
+      metadata: {
+        serviceId: input.serviceId,
+        professionalId: input.professionalId,
+        customerEmail: input.clientInfo.email,
+        customerIp: input.clientInfo.ip,
+        paymentMethodType: input.payment?.type ?? 'CARD',
+        token: input.payment.token,
+        installments: input.payment?.installments,
+      },
+    });
+    return { kind: 'charge', providerTransactionId: charge.providerTransactionId };
+  }
+
+  private async hostedIntentSource(input: {
+    tenantId: string;
+    internalReference: string;
+    advanceAmount: number;
+    currency: string;
+  }): Promise<
+    | { kind: 'intent'; chargeMode: 'hosted'; publicKey: string; amountInCents: number; signatureIntegrity: string }
+    | { kind: 'intent'; chargeMode: 'demo'; amountInCents: number; signatureIntegrity?: undefined; publicKey?: undefined }
+  > {
+    const intent = await this.gateway.buildChargeIntent({
+      tenantId: input.tenantId,
+      internalReference: input.internalReference,
+      amount: input.advanceAmount,
+      currency: input.currency,
+    });
+    if (intent.mode === 'hosted') {
+      return {
+        kind: 'intent',
+        chargeMode: 'hosted',
+        publicKey: intent.publicKey,
+        amountInCents: intent.amountInCents,
+        signatureIntegrity: intent.signatureIntegrity,
+      };
+    }
+    return { kind: 'intent', chargeMode: 'demo', amountInCents: intent.amountInCents };
+  }
+
+  private async buildIntent(input: {
+    tenantId: string;
+    advanceAmount: number;
+    currency: string;
+    paymentReference: string;
+  }): Promise<BookingIntent> {
+    const intent = await this.hostedIntentSource({
+      tenantId: input.tenantId,
+      internalReference: input.paymentReference,
+      advanceAmount: input.advanceAmount,
+      currency: input.currency,
+    });
+    const base: BookingIntent = {
+      advanceAmount: input.advanceAmount,
+      currency: input.currency,
+      paymentReference: input.paymentReference,
+    };
+    return {
+      ...base,
+      chargeMode: intent.chargeMode,
+      publicKey: intent.publicKey,
+      amountInCents: intent.amountInCents,
+      signatureIntegrity: intent.signatureIntegrity,
     };
   }
 
@@ -214,9 +397,14 @@ export class BookingUseCases {
     requestedBy: CancellationRequestedBy;
     reason?: string;
     actor: string;
+    /** Si se indica, la cita debe pertenecer a este profesional (cancelación desde su agenda). */
+    professionalId?: string;
   }): Promise<Appointment> {
     const appointment = await this.repos.appointments.findById(input.tenantId, input.appointmentId);
     if (!appointment) throw new NotFoundError('Appointment', input.appointmentId);
+    if (input.professionalId && appointment.professionalId !== input.professionalId) {
+      throw new ForbiddenError('appointment does not belong to this professional');
+    }
     if (['cancelled', 'completed', 'no_show', 'expired'].includes(appointment.status)) {
       throw new ConflictError('APPOINTMENT_TERMINAL', `appointment is already ${appointment.status}`);
     }
@@ -237,6 +425,9 @@ export class BookingUseCases {
 
     let refundTransactionId: string | undefined;
     if (decision.refundAmount > 0) {
+      const original = appointment.paymentReference
+        ? await this.repos.paymentTransactions.findByInternalReference(input.tenantId, appointment.paymentReference)
+        : null;
       const refund = await this.gateway.createRefund({
         tenantId: input.tenantId,
         appointmentId: appointment.id,
@@ -244,6 +435,9 @@ export class BookingUseCases {
         amount: decision.refundAmount,
         currency: tenant.currency,
         idempotencyKey: `refund-${appointment.id}`,
+        metadata: original?.providerTransactionId
+          ? { providerTransactionId: original.providerTransactionId }
+          : undefined,
       });
       refundTransactionId = refund.providerTransactionId;
     }

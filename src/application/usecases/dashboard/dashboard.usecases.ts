@@ -1,13 +1,29 @@
-import { NotFoundError, ValidationError } from '../../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { Appointment, AvailabilityBlock, LedgerEntry, Tenant, TenantRole } from '../../../domain/entities';
+import { AppointmentStatus } from '../../../domain/entities/types';
 import {
   AppointmentRepository,
   AvailabilityBlockRepository,
   LedgerRepository,
+  PaymentTransactionRepository,
   TenantRepository,
   TenantUserRepository,
 } from '../../../domain/ports/repositories';
 import { addDaysUtc, todayUtcParts, utcLocalStartMs } from '../../../shared/timezone';
+import { buildOwnerReport, dayRange, OwnerReport } from '../../../domain/rules/report-rules';
+
+const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const MAX_REPORT_DAYS = 366;
+
+function parseDayKey(value: string, field: string): { year: number; month: number; day: number } {
+  if (!DAY_KEY_RE.test(value)) throw new ValidationError(`${field} must be YYYY-MM-DD`);
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    throw new ValidationError(`${field} is not a valid date`);
+  }
+  return { year, month, day };
+}
 
 export interface OwnerOverview {
   tenant: Tenant;
@@ -28,6 +44,17 @@ export interface ProfessionalAgenda {
   blocks: AvailabilityBlock[];
 }
 
+export interface OwnerAppointmentRow {
+  appointment: Appointment;
+  advanceAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  currency: string;
+}
+
+const TERMINAL_STATUSES: readonly AppointmentStatus[] = ['cancelled', 'expired', 'completed', 'no_show'];
+const STATUS_FOR_OWNER: readonly AppointmentStatus[] = ['completed', 'no_show'];
+
 export class DashboardUseCases {
   constructor(
     private readonly repos: {
@@ -36,8 +63,33 @@ export class DashboardUseCases {
       ledger: LedgerRepository;
       tenantUsers: TenantUserRepository;
       availabilityBlocks: AvailabilityBlockRepository;
+      paymentTransactions: PaymentTransactionRepository;
     },
   ) {}
+
+  /**
+   * Monto realmente pagado por el cliente. En citas creadas antes de que se
+   * persistiera `paidAmount`, se recupera el monto bruto de la transacción
+   * aprobada (enlace de pago por anticipo o por el total).
+   */
+  async #resolvePaidAmount(appointment: Appointment, advanceAmount: number): Promise<number> {
+    if (appointment.paymentStatus !== 'approved' || appointment.status === 'cancelled') return 0;
+    if (appointment.paidAmount && appointment.paidAmount > 0) return appointment.paidAmount;
+    if (appointment.latestPaymentTransactionId) {
+      try {
+        const tx = await this.repos.paymentTransactions.findById(
+          appointment.tenantId,
+          appointment.latestPaymentTransactionId,
+        );
+        if (tx && tx.status === 'approved' && tx.operation === 'charge' && tx.amount > 0) {
+          return Math.round(tx.amount * 100) / 100;
+        }
+      } catch {
+        // si no existe la transacción, se cae al anticipo
+      }
+    }
+    return advanceAmount;
+  }
 
   async ownerOverview(tenantId: string, requestorKeycloakId: string): Promise<OwnerOverview> {
     const tenant = await this.repos.tenants.findById(tenantId);
@@ -91,6 +143,41 @@ export class DashboardUseCases {
     };
   }
 
+  /**
+   * Reporte de ingresos, comisión y reembolsos del owner entre dos días locales
+   * del negocio (`from` y `to` en YYYY-MM-DD, ambos inclusive).
+   */
+  async ownerReport(input: { tenantId: string; from: string; to: string }): Promise<OwnerReport> {
+    const fromParts = parseDayKey(input.from, 'from');
+    const toParts = parseDayKey(input.to, 'to');
+    if (input.from > input.to) throw new ValidationError('from must be before or equal to to');
+    if (dayRange(input.from, input.to).length > MAX_REPORT_DAYS) {
+      throw new ValidationError(`range cannot exceed ${MAX_REPORT_DAYS} days`);
+    }
+
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const startIso = new Date(
+      utcLocalStartMs(tenant.timezone, fromParts.year, fromParts.month, fromParts.day),
+    ).toISOString();
+    const endIso = new Date(addDaysUtc(tenant.timezone, toParts, 1).ms).toISOString();
+
+    const [movements, appointments] = await Promise.all([
+      this.repos.ledger.findByTenantRange(input.tenantId, startIso, endIso),
+      this.repos.appointments.listByTenant(input.tenantId, startIso, endIso),
+    ]);
+
+    return buildOwnerReport({
+      from: input.from,
+      to: input.to,
+      timeZone: tenant.timezone,
+      currency: tenant.currency,
+      movements,
+      appointments,
+    });
+  }
+
   async professionalAgenda(input: {
     tenantId: string;
     professionalId: string;
@@ -111,6 +198,74 @@ export class DashboardUseCases {
       professionalId,
       appointments: appointments.sort((a, b) => a.startTime.localeCompare(b.startTime)),
       blocks: blocks.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    };
+  }
+
+  async ownerAppointments(input: {
+    tenantId: string;
+    from?: string;
+    to?: string;
+  }): Promise<{ tenant: Tenant; rows: OwnerAppointmentRow[] }> {
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const from = input.from ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const to = input.to ?? new Date(Date.now() + 60 * 86_400_000).toISOString();
+    const appointments = await this.repos.appointments.listByTenant(input.tenantId, from, to);
+
+    const advancePct = tenant.settings.advancePaymentPercentage;
+    const rows: OwnerAppointmentRow[] = [];
+    for (const appointment of appointments) {
+      const advanceAmount =
+        Math.round((appointment.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
+      const paidAmount = await this.#resolvePaidAmount(appointment, advanceAmount);
+      rows.push({
+        appointment,
+        advanceAmount,
+        paidAmount,
+        dueAmount: Math.round((appointment.serviceSnapshot.price - paidAmount) * 100) / 100,
+        currency: appointment.serviceSnapshot.currency,
+      });
+    }
+
+    return { tenant, rows };
+  }
+
+  async ownerSetStatus(input: {
+    tenantId: string;
+    appointmentId: string;
+    status: AppointmentStatus;
+    version: number;
+    actor: string;
+  }): Promise<OwnerAppointmentRow> {
+    if (!STATUS_FOR_OWNER.includes(input.status)) {
+      throw new ValidationError(`owner can only set status to ${STATUS_FOR_OWNER.join(', ')}`);
+    }
+    const appointment = await this.repos.appointments.findById(input.tenantId, input.appointmentId);
+    if (!appointment) throw new NotFoundError('Appointment', input.appointmentId);
+    if (TERMINAL_STATUSES.includes(appointment.status)) {
+      throw new ConflictError('APPOINTMENT_TERMINAL', `appointment is already ${appointment.status}`);
+    }
+    const tenant = await this.repos.tenants.findById(input.tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
+
+    const updated = await this.repos.appointments.updateStatus(
+      input.tenantId,
+      input.appointmentId,
+      input.version,
+      { status: input.status },
+      input.actor,
+    );
+
+    const advancePct = tenant.settings.advancePaymentPercentage;
+    const advanceAmount = Math.round((updated.serviceSnapshot.price * advancePct) / 100 * 100) / 100;
+    const paidAmount = await this.#resolvePaidAmount(updated, advanceAmount);
+    return {
+      appointment: updated,
+      advanceAmount,
+      paidAmount,
+      dueAmount: Math.round((updated.serviceSnapshot.price - paidAmount) * 100) / 100,
+      currency: updated.serviceSnapshot.currency,
     };
   }
 }

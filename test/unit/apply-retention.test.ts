@@ -10,14 +10,14 @@ describe('applyRetention (unit)', () => {
   it('borra backups mas viejos que el limite de retencion', async () => {
     vi.spyOn(r2, 'listBackups').mockResolvedValue([
       'backup-2026-01-01.bin', 
-      'backup-2026-09-20.bin', 
+      'backup-2026-10-20.bin', 
     ]);
     const deleteSpy = vi.spyOn(r2, 'deleteBackup').mockResolvedValue(undefined);
 
     const result = await applyRetention(30);
 
     expect(result.deleted).toContain('backup-2026-01-01.bin');
-    expect(result.kept).toContain('backup-2026-09-20.bin');
+    expect(result.kept).toContain('backup-2026-10-20.bin');
     expect(deleteSpy).toHaveBeenCalledWith('backup-2026-01-01.bin');
     expect(deleteSpy).toHaveBeenCalledTimes(1);
   });

@@ -20,6 +20,7 @@ export interface ClientInfo {
   name: string;
   phone?: string;
   email?: string;
+  documentId?: string;
   habeasDataAcceptedAt: string;
   ip?: string;
   userAgent?: string;
@@ -46,9 +47,11 @@ export interface Appointment {
   commissionRateSnapshot: number;
   planIdSnapshot: string;
   idempotencyKey?: string;
+  createdAt?: string;
   source: AppointmentSource;
   paymentReference?: string;
   latestPaymentTransactionId?: string;
+  paidAmount?: number;
   clientInfo: ClientInfo;
   startTime: string;
   endTime: string;
@@ -64,4 +67,8 @@ export interface BookingIntent {
   currency: string;
   paymentReference: string;
   providerTransactionId?: string;
+  chargeMode?: 'hosted' | 'demo';
+  publicKey?: string;
+  amountInCents?: number;
+  signatureIntegrity?: string;
 }

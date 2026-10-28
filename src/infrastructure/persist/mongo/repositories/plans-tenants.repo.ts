@@ -121,6 +121,10 @@ export class TenantMongoRepository implements TenantRepository {
       ...(tenant.settings.whatsappPhoneNumberId
         ? { whatsapp_phone_number_id: tenant.settings.whatsappPhoneNumberId }
         : {}),
+      ...(tenant.settings.bookingMode ? { booking_mode: tenant.settings.bookingMode } : {}),
+      ...(tenant.settings.capacityPerSlot
+        ? { capacity_per_slot: bsonInt(tenant.settings.capacityPerSlot) }
+        : {}),
     };
     const doc = auditCreate(
       {
@@ -132,6 +136,8 @@ export class TenantMongoRepository implements TenantRepository {
         timezone: tenant.timezone,
         currency: tenant.currency,
         country: tenant.country,
+        category: tenant.category,
+        city: tenant.city,
         tagline: tenant.tagline,
         description: tenant.description,
         logo_url: tenant.logoUrl,
@@ -165,6 +171,8 @@ export class TenantMongoRepository implements TenantRepository {
         tagline: tenant.tagline,
         description: tenant.description,
         country: tenant.country,
+        category: tenant.category,
+        city: tenant.city,
         address: tenant.address,
         phone: tenant.phone,
         logo_url: tenant.logoUrl,

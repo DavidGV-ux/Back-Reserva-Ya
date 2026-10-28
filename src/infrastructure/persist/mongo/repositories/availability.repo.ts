@@ -45,6 +45,13 @@ export class AvailabilityBlockMongoRepository implements AvailabilityBlockReposi
     return blockToDomain({ ...doc, _id: res.insertedId });
   }
 
+  async findActiveIds(tenantId: string): Promise<string[]> {
+    const docs = await this.collection
+      .find({ tenant_id: tenantId, status: 'active' }, { projection: { _id: 1 }, session: this.session })
+      .toArray();
+    return docs.map((d) => String(d._id));
+  }
+
   async updateStatus(tenantId: string, id: string, expectedVersion: number, status: 'active' | 'cancelled', actor: string): Promise<AvailabilityBlock> {
     const updated = await occUpdate(
       this.collection,
@@ -130,6 +137,26 @@ export class TimeSlotMongoRepository implements TimeSlotRepository {
       { tenant_id: tenantId, appointment_id: bsonId(appointmentId) },
       { session: this.session },
     );
+  }
+
+  async removeOrphans(
+    tenantId: string,
+    occupiedAppointmentIds: string[],
+    activeBlockIds: string[],
+  ): Promise<{ removed: number }> {
+    const appointmentIds = occupiedAppointmentIds.map((id) => bsonId(id));
+    const blockIds = activeBlockIds.map((id) => bsonId(id));
+    const res = await this.collection.deleteMany(
+      {
+        tenant_id: tenantId,
+        $or: [
+          { occupation_type: 'appointment', appointment_id: { $nin: appointmentIds } },
+          { occupation_type: 'block', block_id: { $nin: blockIds } },
+        ],
+      },
+      { session: this.session },
+    );
+    return { removed: res.deletedCount ?? 0 };
   }
 
   async occupationByRange(tenantId: string, professionalIds: string[], from: string, to: string): Promise<Map<string, { occupationType: TimeSlot['occupationType']; start: number; end: number }[]>> {

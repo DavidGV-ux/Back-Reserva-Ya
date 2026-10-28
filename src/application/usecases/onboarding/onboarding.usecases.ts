@@ -1,5 +1,11 @@
 import { ConflictError, NotFoundError, ValidationError } from '../../../shared/errors';
-import { Professional, Tenant, TenantUser, WeeklySchedule } from '../../../domain/entities';
+import {
+  defaultWeeklySchedule,
+  normalizeWeeklySchedule,
+  Professional,
+  Tenant,
+  TenantUser,
+} from '../../../domain/entities';
 import {
   PlanRepository,
   ProfessionalRepository,
@@ -40,10 +46,12 @@ export class OnboardingUseCases {
     actor: Actor;
     slug: string;
     name: string;
+    category?: Tenant['category'];
     tagline?: string;
     description?: string;
     timezone?: string;
     country?: string;
+    city?: string;
     currency: 'COP' | 'USD';
     phone?: string;
     address?: string;
@@ -93,6 +101,8 @@ export class OnboardingUseCases {
       timezone: input.timezone ?? 'America/Bogota',
       currency: input.currency,
       country: input.country,
+      category: input.category ?? 'other',
+      city: input.city,
       address: input.address,
       phone: input.phone,
       logoUrl: input.logoUrl,
@@ -196,9 +206,12 @@ export class OnboardingUseCases {
       title: input.title,
       avatarUrl: input.avatarUrl,
       serviceIds: input.serviceIds,
-      schedule: normalizeWeeklySchedule(input.weeklySchedule),
+      schedule: input.weeklySchedule
+        ? normalizeWeeklySchedule(input.weeklySchedule)
+        : defaultWeeklySchedule(),
       active: true,
       keycloakUserId: sub,
+      phone: input.phone,
       version: 1,
     };
     await this.deps.professionals.create(professional, actor.keycloakUserId);
@@ -232,7 +245,9 @@ export class OnboardingUseCases {
       tagline: string;
       description: string;
       country: string;
+      city: string;
       currency: 'COP' | 'USD';
+      category: Tenant['category'];
       logoUrl?: string;
       coverUrl?: string;
       address?: string;
@@ -254,7 +269,9 @@ export class OnboardingUseCases {
         tagline: tenant.tagline,
         description: tenant.description,
         country: tenant.country ?? '',
+        city: tenant.city ?? '',
         currency: tenant.currency,
+        category: tenant.category ?? 'other',
         logoUrl: tenant.logoUrl,
         coverUrl: tenant.coverUrl,
         address: tenant.address,
@@ -268,24 +285,4 @@ export class OnboardingUseCases {
 
 function tempPassword(): string {
   return `Ry!${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeWeeklySchedule(input?: Record<string, Array<{ start: string; end: string }>>): WeeklySchedule {
-  const empty = (): WeeklySchedule => ({
-    monday: [],
-    tuesday: [],
-    wednesday: [],
-    thursday: [],
-    friday: [],
-    saturday: [],
-    sunday: [],
-  });
-  if (!input) return empty();
-  const result = empty();
-  for (const day of Object.keys(result) as Array<keyof WeeklySchedule>) {
-    if (Array.isArray(input[day])) {
-      result[day] = input[day] as WeeklySchedule[typeof day];
-    }
-  }
-  return result;
 }

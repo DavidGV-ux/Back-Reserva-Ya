@@ -38,3 +38,15 @@ export class ValidationError extends DomainError {
     super('VALIDATION_ERROR', message, details);
   }
 }
+
+export class EventSignatureError extends DomainError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('EVENT_SIGNATURE_INVALID', message, details);
+  }
+}
+
+export class UnsupportedPaymentPayloadError extends DomainError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('UNSUPPORTED_PAYMENT_PAYLOAD', message, details);
+  }
+}

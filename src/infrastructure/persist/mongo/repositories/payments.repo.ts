@@ -20,9 +20,17 @@ export class PaymentTransactionMongoRepository implements PaymentTransactionRepo
     return doc ? paymentToDomain(doc) : null;
   }
 
-  async findByInternalReference(tenantId: string, reference: string): Promise<PaymentTransaction | null> {
+  async findByInternalReference(tenantId: string | undefined, reference: string): Promise<PaymentTransaction | null> {
+    const filter = tenantId
+      ? { tenant_id: tenantId, internal_reference: reference }
+      : { internal_reference: reference };
+    const doc = await this.collection.findOne(filter, { session: this.session });
+    return doc ? paymentToDomain(doc) : null;
+  }
+
+  async findById(tenantId: string, id: string): Promise<PaymentTransaction | null> {
     const doc = await this.collection.findOne(
-      { tenant_id: tenantId, internal_reference: reference },
+      { _id: bsonId(id), tenant_id: tenantId },
       { session: this.session },
     );
     return doc ? paymentToDomain(doc) : null;
@@ -132,6 +140,17 @@ export class LedgerMongoRepository implements LedgerRepository {
       .find({ tenant_id: tenantId }, { session: this.session })
       .sort({ timestamp: -1 })
       .limit(limit)
+      .toArray();
+    return docs.map((d) => ledgerToDomain(d));
+  }
+
+  async findByTenantRange(tenantId: string, from: string, to: string): Promise<LedgerEntry[]> {
+    const docs = await this.collection
+      .find(
+        { tenant_id: tenantId, timestamp: { $gte: new Date(from), $lt: new Date(to) } },
+        { session: this.session },
+      )
+      .sort({ timestamp: -1 })
       .toArray();
     return docs.map((d) => ledgerToDomain(d));
   }

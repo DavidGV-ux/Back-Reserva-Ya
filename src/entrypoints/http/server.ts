@@ -1,29 +1,44 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { BootContext, bootstrap } from '../../infrastructure/bootstrap';
 import { publicRouter } from './routes/public.routes';
+import { authRouter } from './routes/auth.routes';
+import { publicPaymentsRouter } from './routes/public-payments.routes';
 import { rolesRouter } from './routes/roles.routes';
 import { adminRouter } from './routes/admin.routes';
 import { webhookRouter } from './routes/webhooks.routes';
 import { onboardingRouter } from './routes/onboarding.routes';
+import { whatsappRouter } from './routes/whatsapp.routes';
 import { errorHandler, notFoundHandler } from './middleware/errors';
+
+export interface RawBodyRequest extends Request {
+  rawBody?: string;
+}
+
+function captureRawBody(req: Request, _res: Response, buf: Buffer): void {
+  (req as RawBodyRequest).rawBody = buf.toString('utf8');
+}
 
 export async function buildApp(boot: BootContext) {
   const app = express();
   app.use(cors());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '1mb', verify: captureRawBody }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb', verify: captureRawBody }));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', ts: new Date().toISOString() });
   });
 
   app.use('/api/public', publicRouter(boot.services, boot.verifier));
+  app.use('/api/public/auth', authRouter(boot.services));
+  app.use('/api/public', publicPaymentsRouter(boot.services));
   app.use('/api/onboarding', onboardingRouter(boot.services, boot.verifier));
   app.use('/api', rolesRouter(boot.services, boot.verifier));
   app.use('/api/admin', adminRouter(boot.services, boot.verifier));
   app.use('/api/webhooks', webhookRouter(boot.services));
+  app.use('/api/public/whatsapp', whatsappRouter(boot.services, boot.verifier));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

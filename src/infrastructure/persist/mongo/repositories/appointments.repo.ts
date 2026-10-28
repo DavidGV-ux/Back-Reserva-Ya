@@ -33,6 +33,18 @@ export class AppointmentMongoRepository implements AppointmentRepository {
     return doc ? appointmentToDomain(doc) : null;
   }
 
+  async findPendingOlderThan(cutoffIso: string, limit = 500): Promise<Appointment[]> {
+    const docs = await this.collection
+      .find(
+        { status: 'pending_payment', created_at: { $lt: new Date(cutoffIso) } },
+        { session: this.session },
+      )
+      .sort({ created_at: 1 })
+      .limit(limit)
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
   async findUpcomingByTenant(tenantId: string, from: string, to?: string): Promise<Appointment[]> {
     const filter: Record<string, unknown> = {
       tenant_id: tenantId,
@@ -53,6 +65,20 @@ export class AppointmentMongoRepository implements AppointmentRepository {
     return this.collection.countDocuments(filter, { session: this.session });
   }
 
+  async listByTenant(tenantId: string, from?: string, to?: string): Promise<Appointment[]> {
+    const filter: Record<string, unknown> = { tenant_id: tenantId };
+    if (from || to) {
+      filter.start_time = {};
+      if (from) (filter.start_time as Record<string, unknown>).$gte = new Date(from);
+      if (to) (filter.start_time as Record<string, unknown>).$lt = new Date(to);
+    }
+    const docs = await this.collection
+      .find(filter, { session: this.session })
+      .sort({ start_time: -1 })
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
   async findByProfessional(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]> {
     const docs = await this.collection
       .find(
@@ -68,11 +94,53 @@ export class AppointmentMongoRepository implements AppointmentRepository {
     return docs.map((d) => appointmentToDomain(d));
   }
 
-  async findHistoryByClient(input: { tenantId?: string; clientId?: string; phone?: string; email?: string }): Promise<Appointment[]> {
+  async findOverlapping(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]> {
+    const docs = await this.collection
+      .find(
+        {
+          tenant_id: tenantId,
+          professional_id: bsonId(professionalId),
+          start_time: { $lt: new Date(to) },
+          end_time: { $gt: new Date(from) },
+        },
+        { session: this.session },
+      )
+      .sort({ start_time: 1 })
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
+  async findOverlappingByTenant(tenantId: string, from: string, to: string): Promise<Appointment[]> {
+    const docs = await this.collection
+      .find(
+        {
+          tenant_id: tenantId,
+          start_time: { $lt: new Date(to) },
+          end_time: { $gt: new Date(from) },
+        },
+        { session: this.session },
+      )
+      .sort({ start_time: 1 })
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
+  async findOccupiedIds(tenantId: string): Promise<string[]> {
+    const docs = await this.collection
+      .find(
+        { tenant_id: tenantId, status: { $in: ['confirmed', 'pending_payment'] } },
+        { projection: { _id: 1 }, session: this.session },
+      )
+      .toArray();
+    return docs.map((d) => String(d._id));
+  }
+
+  async findHistoryByClient(input: { tenantId?: string; clientId?: string; phone?: string; email?: string; documentId?: string }): Promise<Appointment[]> {
     const or: Array<Record<string, unknown>> = [];
     if (input.clientId) or.push({ 'client_info.client_id': input.clientId });
     if (input.phone) or.push({ 'client_info.phone': input.phone });
     if (input.email) or.push({ 'client_info.email': input.email });
+    if (input.documentId) or.push({ 'client_info.document_id': input.documentId });
     const filter: Record<string, unknown> = { $or: or };
     if (input.tenantId) filter.tenant_id = input.tenantId;
     const docs = await this.collection
@@ -113,6 +181,7 @@ export class AppointmentMongoRepository implements AppointmentRepository {
           name: appointment.clientInfo.name,
           ...(appointment.clientInfo.phone ? { phone: appointment.clientInfo.phone } : {}),
           ...(appointment.clientInfo.email ? { email: appointment.clientInfo.email } : {}),
+          ...(appointment.clientInfo.documentId ? { document_id: appointment.clientInfo.documentId } : {}),
           habeas_data_accepted_at: isoToDate(appointment.clientInfo.habeasDataAcceptedAt),
           ...(appointment.clientInfo.ip ? { ip: appointment.clientInfo.ip } : {}),
           ...(appointment.clientInfo.userAgent ? { user_agent: appointment.clientInfo.userAgent } : {}),
@@ -121,6 +190,7 @@ export class AppointmentMongoRepository implements AppointmentRepository {
         end_time: new Date(appointment.endTime),
         status: appointment.status,
         payment_status: appointment.paymentStatus,
+        paid_amount: bsonMoney(appointment.paidAmount ?? 0),
         needs_reassignment: appointment.needsReassignment,
       },
       actor,
@@ -145,12 +215,14 @@ export class AppointmentMongoRepository implements AppointmentRepository {
       paymentStatus?: Appointment['paymentStatus'];
       latestPaymentTransactionId?: string;
       paymentReference?: string;
+      paidAmount?: number;
       cancellation?: Appointment['cancellation'];
     },
     actor: string,
   ): Promise<Appointment> {
     const set: Record<string, unknown> = { status: patch.status };
     if (patch.paymentStatus) set.payment_status = patch.paymentStatus;
+    if (patch.paidAmount !== undefined) set.paid_amount = bsonMoney(patch.paidAmount);
     if (patch.latestPaymentTransactionId) {
       set.latest_payment_transaction_id = bsonId(patch.latestPaymentTransactionId);
     }
