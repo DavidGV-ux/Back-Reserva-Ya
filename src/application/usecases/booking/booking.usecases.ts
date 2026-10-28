@@ -1,6 +1,15 @@
 import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { Appointment, AvailabilityBlock, BookingIntent, ClientInfo } from '../../../domain/entities';
-import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository, ServiceRepository, TenantRepository, PlanRepository, TimeSlotRepository, PaymentTransactionRepository } from '../../../domain/ports/repositories';
+import {
+  AppointmentRepository,
+  AvailabilityBlockRepository,
+  ProfessionalRepository,
+  ServiceRepository,
+  TenantRepository,
+  PlanRepository,
+  TimeSlotRepository,
+  PaymentTransactionRepository,
+} from '../../../domain/ports/repositories';
 import { PaymentGatewayProvider } from '../../../domain/ports/gateways';
 import { UnitOfWork } from '../../../domain/ports/unit-of-work';
 import {
@@ -15,6 +24,7 @@ import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
 import { utcLocalStartMs } from '../../../shared/timezone';
 import { hexId, reference, uuid } from '../../../shared/id';
 import { CancellationRequestedBy, AppointmentStatus } from '../../../domain/entities/types';
+import { NotificationsUseCases } from '../notifications/notifications.usecases';
 
 const OCCUPIED_STATUSES: AppointmentStatus[] = ['confirmed', 'pending_payment'];
 
@@ -38,6 +48,7 @@ export class BookingUseCases {
     },
     private readonly uow: UnitOfWork,
     private readonly gateway: PaymentGatewayProvider,
+    private readonly notifications?: NotificationsUseCases,
   ) {}
 
   async createAppointment(input: {
@@ -112,19 +123,22 @@ export class BookingUseCases {
 
     // La repetición se resuelve antes que el cruce de horarios: si no, la cita original
     // ocupa el slot y el reintento recibe un AVAILABILITY_CONFLICT falso.
+    // Solo se busca cuando el cliente envía la clave (una generada aquí nunca existe).
     const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
-    const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
-    if (existing) {
-      return {
-        appointment: existing,
-        intent: await this.buildIntent({
-          tenantId: input.tenantId,
-          advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
-          currency: tenant.currency,
-          paymentReference: existing.paymentReference ?? '',
-        }),
-        replay: true,
-      };
+    if (input.idempotencyKey) {
+      const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
+      if (existing) {
+        return {
+          appointment: existing,
+          intent: await this.buildIntent({
+            tenantId: input.tenantId,
+            advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
+            currency: tenant.currency,
+            paymentReference: existing.paymentReference ?? '',
+          }),
+          replay: true,
+        };
+      }
     }
 
     const conflicts = bookingPolicy.mode === 'capacity'
@@ -178,8 +192,8 @@ export class BookingUseCases {
       clientInfo,
       startTime: new Date(startMs).toISOString(),
       endTime: new Date(endMs).toISOString(),
-      status: 'pending_payment',
-      paymentStatus: 'pending',
+      status: advanceAmount === 0 ? 'confirmed' : 'pending_payment',
+      paymentStatus: advanceAmount === 0 ? 'approved' : 'pending',
       needsReassignment: false,
       version: 1,
     };
@@ -197,7 +211,7 @@ export class BookingUseCases {
           operation: 'charge',
           amount: advanceAmount,
           currency: tenant.currency,
-          status: 'pending',
+          status: advanceAmount === 0 ? 'approved' : 'pending',
           version: 1,
         },
         input.actor,
@@ -227,6 +241,18 @@ export class BookingUseCases {
       }
       throw err;
     });
+
+    // B-02: Si el servicio no requiere anticipo (advanceAmount === 0), la cita nace confirmada y dispara confirmación
+    if (result.status === 'confirmed' && this.notifications) {
+      await this.notifications
+        .notifyAppointmentEvent({
+          appointment: result,
+          tenant,
+          type: 'confirmation',
+          paidAmount: 0,
+        })
+        .catch(() => undefined);
+    }
 
     return {
       appointment: result,
@@ -298,7 +324,8 @@ export class BookingUseCases {
     ]);
     const overlaps = (s: number, e: number) => s < endMs && e > startMs;
     const apptConflict = appointments.some(
-      (a) => OCCUPIED_STATUSES.includes(a.status) &&
+      (a) =>
+        OCCUPIED_STATUSES.includes(a.status) &&
         overlaps(new Date(a.startTime).getTime(), new Date(a.endTime).getTime()),
     );
     const blockConflict = blocks.some((b) =>
@@ -444,29 +471,49 @@ export class BookingUseCases {
 
     const cancelled = await this.uow.withTransaction(async (tx) => {
       await tx.timeSlots.removeForAppointment(input.tenantId, appointment.id);
-      return tx.appointments.updateStatus(input.tenantId, appointment.id, appointment.version, {
-        status: 'cancelled',
-        paymentStatus: decision.refundAmount > 0 ? 'pending' : appointment.paymentStatus,
-        cancellation: buildCancellation(decision, input.requestedBy, input.reason, new Date().toISOString()),
-      }, input.actor);
+      return tx.appointments.updateStatus(
+        input.tenantId,
+        appointment.id,
+        appointment.version,
+        {
+          status: 'cancelled',
+          paymentStatus: decision.refundAmount > 0 ? 'pending' : appointment.paymentStatus,
+          cancellation: buildCancellation(decision, input.requestedBy, input.reason, new Date().toISOString()),
+        },
+        input.actor,
+      );
     });
 
     if (refundTransactionId && decision.refundAmount > 0) {
       await this.uow.withTransaction(async (tx) => {
-        return tx.paymentTransactions.create({
-          id: hexId(),
-          tenantId: input.tenantId,
-          appointmentId: appointment.id,
-          provider: this.gateway.name,
-          providerTransactionId: refundTransactionId,
-          internalReference: `${appointment.paymentReference}-R`,
-          operation: 'refund',
-          amount: decision.refundAmount,
-          currency: tenant.currency,
-          status: 'pending',
-          version: 1,
-        }, input.actor);
+        return tx.paymentTransactions.create(
+          {
+            id: hexId(),
+            tenantId: input.tenantId,
+            appointmentId: appointment.id,
+            provider: this.gateway.name,
+            providerTransactionId: refundTransactionId,
+            internalReference: `${appointment.paymentReference}-R`,
+            operation: 'refund',
+            amount: decision.refundAmount,
+            currency: tenant.currency,
+            status: 'pending',
+            version: 1,
+          },
+          input.actor,
+        );
       });
+    }
+
+    // B-02: Emitir notificación de cancelación por el puerto correspondiente
+    if (this.notifications) {
+      await this.notifications
+        .notifyAppointmentEvent({
+          appointment: cancelled,
+          tenant,
+          type: 'cancellation',
+        })
+        .catch(() => undefined);
     }
 
     return cancelled;
