@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-lambda/
+.serverless/
 .env
 .env.local
 .env.prod-backup
