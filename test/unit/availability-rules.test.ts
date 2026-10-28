@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCapacitySlots,
   buildSlots,
   fitForDuration,
   reasonForStart,
@@ -170,5 +171,64 @@ describe('reasonForStart', () => {
     expect(
       reasonForStart(dayStart, 30, [], [{ start: dayStart, end: dayStart + 60 * 60_000 }]),
     ).toBe('block');
+  });
+});
+describe('buildCapacitySlots', () => {
+  const start = Date.UTC(2026, 2, 23, 9, 0); // Monday 09:00
+  const shift = [{ start, end: start + 3 * 60 * 60_000 }];
+
+  it('permite varias reservas simultáneas hasta la capacidad', () => {
+    const occupied = [
+      { start, end: start + 30 * 60_000 },
+      { start, end: start + 30 * 60_000 },
+    ];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied,
+      blocked: [],
+      durationMinutes: 30,
+      capacity: 2,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const second = slots.find((s) => new Date(s.start).getTime() === start + 30 * 60_000)!;
+    expect(first.available).toBe(false);
+    expect(first.reason).toBe('booked');
+    expect(second.available).toBe(true);
+  });
+
+  it('cuenta solapamientos con la duración real del servicio', () => {
+    const occupied = [{ start, end: start + 60 * 60_000 }];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied,
+      blocked: [],
+      durationMinutes: 60,
+      capacity: 2,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const second = slots.find((s) => new Date(s.start).getTime() === start + 30 * 60_000)!;
+    expect(first.available).toBe(true);
+    expect(second.available).toBe(true);
+  });
+
+  it('respeta bloqueos del profesional y la duración dentro del turno', () => {
+    const blocked = [{ start: start + 30 * 60_000, end: start + 60 * 60_000 }];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied: [],
+      blocked,
+      durationMinutes: 60,
+      capacity: 10,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const last = slots.find((s) => new Date(s.start).getTime() === start + 150 * 60_000)!;
+    expect(first.blocked).toBe(true);
+    expect(last.reason).toBe('gap');
   });
 });

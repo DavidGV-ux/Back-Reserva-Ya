@@ -7,6 +7,7 @@ import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
 import { publishAppointmentCreated } from '../whatsapp-events';
 import { z } from 'zod';
 import { param } from './params';
+import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
 
 const createAppointmentSchema = z.object({
   serviceId: z.string().min(1),
@@ -92,6 +93,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
       const professionalId = requiredString(req.query.professionalId, 'professionalId');
       const date = requiredString(req.query.date, 'date');
       const durationMinutes = requiredInt(req.query.durationMinutes, 'durationMinutes');
+      const policy = resolveBookingPolicy(tenant);
       const slots = await services.availability.listSlots({
         tenantId: tenant.tenantId,
         professionalId,
@@ -99,6 +101,8 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         durationMinutes,
         timezone: tenant.timezone,
         granularityMinutes: tenant.settings.slotGranularityMinutes,
+        capacityMode: policy.mode === 'capacity',
+        capacity: policy.capacityPerSlot,
       });
       res.json(slots);
     }),

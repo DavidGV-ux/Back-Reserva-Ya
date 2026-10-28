@@ -16,7 +16,9 @@ export async function publishAppointmentCreated(input: {
   if (!endpoint) return;
   const secret = process.env.WHATSAPP_BOT_SECRET ?? '';
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2500);
+  // El bot a su vez llama a la Cloud API de Meta; 2.5s era demasiado corto
+  // y abortaba invitaciones que sí se estaban enviando.
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     await fetch(endpoint, {
       method: 'POST',
@@ -90,7 +92,9 @@ export async function publishUserInvite(input: {
   if (!endpoint) return false;
   const secret = process.env.WHATSAPP_BOT_SECRET ?? '';
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2500);
+  // El bot a su vez llama a la Cloud API de Meta; 2.5s era demasiado corto
+  // y abortaba invitaciones que sí se estaban enviando.
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',

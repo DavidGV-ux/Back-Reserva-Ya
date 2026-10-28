@@ -41,6 +41,10 @@ function settingsFromDoc(doc: Doc): Tenant['settings'] {
     preferredNotificationChannel: (s.preferred_notification_channel as Tenant['settings']['preferredNotificationChannel']) ?? 'whatsapp',
     reminderHours: intToNumber(s.reminder_hours ?? 24),
     whatsappPhoneNumberId: s.whatsapp_phone_number_id as string | undefined,
+    bookingMode: s.booking_mode === 'capacity' || s.booking_mode === 'exclusive'
+      ? s.booking_mode
+      : undefined,
+    capacityPerSlot: s.capacity_per_slot == null ? undefined : intToNumber(s.capacity_per_slot),
   };
 }
 

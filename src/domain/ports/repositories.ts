@@ -64,6 +64,7 @@ export interface AppointmentRepository {
   countByTenant(tenantId: string, since?: string): Promise<number>;
   findByProfessional(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
   findOverlapping(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
+  findOverlappingByTenant(tenantId: string, from: string, to: string): Promise<Appointment[]>;
   findOccupiedIds(tenantId: string): Promise<string[]>;
   findHistoryByClient(
     input: { tenantId: string; clientId?: string; phone?: string; email?: string; documentId?: string },

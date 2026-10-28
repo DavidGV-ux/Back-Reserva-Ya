@@ -11,6 +11,7 @@ import {
 } from '../../../domain/rules/booking-rules';
 import { applyCancellationPolicy, buildCancellation } from '../../../domain/rules/cancellation-rules';
 import { weeklyScheduleForDay } from '../../../domain/rules/availability-rules';
+import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
 import { utcLocalStartMs } from '../../../shared/timezone';
 import { hexId, reference, uuid } from '../../../shared/id';
 import { CancellationRequestedBy, AppointmentStatus } from '../../../domain/entities/types';
@@ -84,6 +85,7 @@ export class BookingUseCases {
     const granularity = tenant.settings.slotGranularityMinutes;
     const durationMs = service.durationMinutes * 60_000;
     const endMs = startMs + durationMs;
+    const bookingPolicy = resolveBookingPolicy(tenant);
 
     const date = new Date(startMs);
     const dayStart = utcLocalStartMs(
@@ -125,7 +127,15 @@ export class BookingUseCases {
       };
     }
 
-    const conflicts = await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
+    const conflicts = bookingPolicy.mode === 'capacity'
+      ? await this.findCapacityConflict(
+          input.tenantId,
+          professional.id,
+          startMs,
+          endMs,
+          bookingPolicy.capacityPerSlot,
+        )
+      : await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
     if (conflicts) {
       throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
     }
@@ -192,20 +202,24 @@ export class BookingUseCases {
         },
         input.actor,
       );
-      const slotStarts: number[] = [];
-      for (let t = startMs; t < endMs; t += granularity * 60_000) slotStarts.push(t);
-      await tx.timeSlots.insertMany(
-        slotStarts.map((t, i) => ({
-          id: hexId(),
-          tenantId: input.tenantId,
-          professionalId: professional.id,
-          slotStart: new Date(t).toISOString(),
-          occupationType: 'appointment' as const,
-          appointmentId: created.id,
-          createdAt: now,
-          ...(i === 0 ? {} : { blockId: undefined }),
-        })),
-      );
+      // En modo capacidad compartida no se reservan time_slots por profesional:
+      // la concurrencia se controla contando reservas contra capacityPerSlot.
+      if (bookingPolicy.mode === 'exclusive') {
+        const slotStarts: number[] = [];
+        for (let t = startMs; t < endMs; t += granularity * 60_000) slotStarts.push(t);
+        await tx.timeSlots.insertMany(
+          slotStarts.map((t, i) => ({
+            id: hexId(),
+            tenantId: input.tenantId,
+            professionalId: professional.id,
+            slotStart: new Date(t).toISOString(),
+            occupationType: 'appointment' as const,
+            appointmentId: created.id,
+            createdAt: now,
+            ...(i === 0 ? {} : { blockId: undefined }),
+          })),
+        );
+      }
       return created;
     }).catch((err: unknown) => {
       if (isDuplicateKey(err)) {
@@ -231,6 +245,35 @@ export class BookingUseCases {
       },
       replay: false,
     };
+  }
+
+  /**
+   * En negocios de capacidad compartida (cafés, restaurantes), el límite no es
+   * el profesional sino el aforo del negocio en esa franja. Los bloqueos del
+   * profesional asignado sí se respetan.
+   */
+  private async findCapacityConflict(
+    tenantId: string,
+    professionalId: string,
+    startMs: number,
+    endMs: number,
+    capacity: number,
+  ): Promise<boolean> {
+    const from = new Date(startMs).toISOString();
+    const to = new Date(endMs).toISOString();
+    const [appointments, blocks] = await Promise.all([
+      this.repos.appointments.findOverlappingByTenant(tenantId, from, to),
+      this.repos.availabilityBlocks.findActiveByProfessional(tenantId, professionalId, from, to),
+    ]);
+    const overlaps = (s: number, e: number) => s < endMs && e > startMs;
+    if (blocks.some((b) => overlaps(new Date(b.startTime).getTime(), new Date(b.endTime).getTime()))) {
+      return true;
+    }
+    const concurrent = appointments.filter(
+      (a) => OCCUPIED_STATUSES.includes(a.status) &&
+        overlaps(new Date(a.startTime).getTime(), new Date(a.endTime).getTime()),
+    ).length;
+    return concurrent >= Math.max(1, capacity);
   }
 
   private async findOverlaps(

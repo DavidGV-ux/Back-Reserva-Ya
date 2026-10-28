@@ -26,6 +26,8 @@ const createTenantSchema = z.object({
       cancellationToleranceHours: z.number().optional(),
       upfrontPercent: z.number().optional(),
       slotGranularityMinutes: z.number().optional(),
+      bookingMode: z.enum(['exclusive', 'capacity']).optional(),
+      capacityPerSlot: z.number().int().min(1).max(500).optional(),
     })
     .optional(),
 });
@@ -84,6 +86,8 @@ export function adminRouter(services: AppServices, verifier: KeycloakVerifier): 
             cancellationToleranceHours: body.settings?.cancellationToleranceHours,
             advancePaymentPercentage: body.settings?.upfrontPercent,
             slotGranularityMinutes: body.settings?.slotGranularityMinutes,
+            bookingMode: body.settings?.bookingMode,
+            capacityPerSlot: body.settings?.capacityPerSlot,
           }
           : undefined,
       });
