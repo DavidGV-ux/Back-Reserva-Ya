@@ -1,4 +1,9 @@
-import { WorkInterval, WeeklySchedule } from '../entities/catalog';
+import {
+  DEFAULT_WEEK_SCHEDULE,
+  WEEK_DAY_KEYS,
+  WorkInterval,
+  WeeklySchedule,
+} from '../entities/catalog';
 import { SlotReason, SlotView } from '../entities/availability';
 
 export interface ShiftInterval {
@@ -26,8 +31,15 @@ export function weeklyScheduleForDay(schedule: WeeklySchedule, weekday: number):
     'saturday',
   ][weekday] as keyof WeeklySchedule;
   const intervals: WorkInterval[] = schedule[key] ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (intervals as any[]).length ? intervals : [];
+  if (intervals.length) return intervals;
+  // Un profesional sin ningún intervalo configurado (p.ej. dado de alta sin horario)
+  // opera con los horarios por defecto: ningún negocio queda sin disponibilidad por accidente.
+  const hasAnyInterval = WEEK_DAY_KEYS.some((day) => (schedule[day] ?? []).length > 0);
+  if (!hasAnyInterval) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return DEFAULT_WEEK_SCHEDULE[key] as any[];
+  }
+  return [];
 }
 
 export function buildSlots(params: {
@@ -101,4 +113,73 @@ export function reasonForStart(
   if (blocked.some((b) => b.start < end && b.end > start)) return 'block';
   if (occupied.some((o) => o.start < end && o.end > start)) return 'booked';
   return undefined;
+}
+
+/**
+ * Slots para negocios con capacidad compartida (cafés, restaurantes, eventos).
+ *
+ * A diferencia de `buildSlots`, varias reservas pueden solaparse en la misma
+ * franja: el límite es `capacity`, no el profesional. La duración del servicio
+ * se usa para contar cuántas reservas se solapan con la franja solicitada.
+ */
+export function buildCapacitySlots(params: {
+  shiftIntervals: ShiftInterval[];
+  granularityMinutes: number;
+  occupied: OccupiedRange[];
+  blocked: OccupiedRange[];
+  durationMinutes: number;
+  capacity: number;
+  now: number;
+}): SlotView[] {
+  const { shiftIntervals, granularityMinutes, occupied, blocked, durationMinutes, now } = params;
+  const step = granularityMinutes * 60_000;
+  const duration = Math.max(granularityMinutes, durationMinutes) * 60_000;
+  const capacity = Math.max(1, Math.floor(params.capacity));
+  const slots: SlotView[] = [];
+
+  for (const shift of shiftIntervals) {
+    for (let t = shift.start; t + step <= shift.end; t += step) {
+      const displayEnd = t + step;
+      if (t < now) {
+        slots.push({
+          start: new Date(t).toISOString(),
+          end: new Date(displayEnd).toISOString(),
+          available: false,
+          blocked: false,
+          reason: 'past',
+        });
+        continue;
+      }
+      if (t + duration > shift.end) {
+        slots.push({
+          start: new Date(t).toISOString(),
+          end: new Date(displayEnd).toISOString(),
+          available: false,
+          blocked: false,
+          reason: 'gap',
+        });
+        continue;
+      }
+      const intersectsBlock = blocked.some((b) => b.start < t + duration && b.end > t);
+      if (intersectsBlock) {
+        slots.push({
+          start: new Date(t).toISOString(),
+          end: new Date(displayEnd).toISOString(),
+          available: false,
+          blocked: true,
+          reason: 'block',
+        });
+        continue;
+      }
+      const overlapping = occupied.filter((o) => o.start < t + duration && o.end > t).length;
+      slots.push({
+        start: new Date(t).toISOString(),
+        end: new Date(displayEnd).toISOString(),
+        available: overlapping < capacity,
+        blocked: false,
+        reason: overlapping < capacity ? undefined : 'booked',
+      });
+    }
+  }
+  return slots;
 }

@@ -1,12 +1,12 @@
 import { env } from '../config/env';
-import { connectMongo, getDb } from './persist/mongo/connection';
+import { connectMongo, disconnectMongo, getDb } from './persist/mongo/connection';
 import { createRepos } from './persist/mongo/repositories/repo-factory';
 import { MongoUnitOfWork } from './persist/mongo/unit-of-work';
 import { ensureExtraIndexes } from './persist/mongo/repositories/base';
 import { KeycloakVerifier } from './auth/keycloak';
 import { KeycloakAdminGateway } from './auth/keycloak-admin';
-import { MockPaymentGateway } from './integrations/payments/mock-payment';
-import { MockNotificationGateway } from './integrations/notifications/mock-notifications';
+import { buildPaymentGateway } from './integrations/payments/factory';
+import { buildNotificationGateway } from './integrations/notifications/factory';
 import { AppServices } from '../application/container';
 import { identityRealm } from '../config/env';
 
@@ -27,21 +27,25 @@ export async function bootstrap(): Promise<BootContext> {
   const services = new AppServices({
     repos,
     uow,
-    paymentGateway: new MockPaymentGateway(),
-    notificationGateway: new MockNotificationGateway(),
+    paymentGateway: buildPaymentGateway(),
+    notificationGateway: buildNotificationGateway(),
     identity: new KeycloakAdminGateway({
       baseUrl: env.oidcAdminBaseUrl,
       realm: identityRealm,
       clientId: env.oidcAdminClientId,
       clientSecret: env.oidcAdminClientSecret,
     }),
+    settings: {
+      frontBaseUrl: env.frontBaseUrl,
+      paymentSessionSecret: env.paymentSessionSecret,
+    },
   });
 
   return {
     services,
     verifier,
     shutdown: async () => {
-      await client.close();
+      await disconnectMongo();
     },
   };
 }

@@ -1,4 +1,5 @@
 import { NotFoundError, ValidationError } from '../../../shared/errors';
+import { normalizePhoneE164 } from '../../../shared/phone';
 import { Appointment } from '../../../domain/entities';
 import { AppointmentRepository } from '../../../domain/ports/repositories';
 import { TenantRepository } from '../../../domain/ports/repositories';
@@ -16,18 +17,21 @@ export class HistoryUseCases {
     clientId?: string;
     phone?: string;
     email?: string;
+    documentId?: string;
   }): Promise<Appointment[]> {
-    if (!input.clientId && !input.phone && !input.email) {
+    if (!input.clientId && !input.phone && !input.email && !input.documentId) {
       throw new ValidationError('provide clientId, phone or email to query history');
     }
     if (input.tenantId) {
       await this.repos.tenants.findById(input.tenantId);
     }
+    const phone = input.phone ? (normalizePhoneE164(input.phone) ?? input.phone) : undefined;
     const appointments = await this.repos.appointments.findHistoryByClient({
       tenantId: input.tenantId ?? '',
       clientId: input.clientId,
-      phone: input.phone,
+      phone,
       email: input.email,
+      documentId: input.documentId,
     });
     return appointments.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }

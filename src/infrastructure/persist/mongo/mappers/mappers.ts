@@ -41,6 +41,10 @@ function settingsFromDoc(doc: Doc): Tenant['settings'] {
     preferredNotificationChannel: (s.preferred_notification_channel as Tenant['settings']['preferredNotificationChannel']) ?? 'whatsapp',
     reminderHours: intToNumber(s.reminder_hours ?? 24),
     whatsappPhoneNumberId: s.whatsapp_phone_number_id as string | undefined,
+    bookingMode: s.booking_mode === 'capacity' || s.booking_mode === 'exclusive'
+      ? s.booking_mode
+      : undefined,
+    capacityPerSlot: s.capacity_per_slot == null ? undefined : intToNumber(s.capacity_per_slot),
   };
 }
 
@@ -56,6 +60,8 @@ export function tenantToDomain(doc: Doc): Tenant {
     timezone: String(doc.timezone ?? 'America/Bogota'),
     currency: (doc.currency as Tenant['currency']) ?? 'COP',
     country: doc.country as string | undefined,
+    category: (doc.category as Tenant['category']) ?? 'other',
+    city: doc.city as string | undefined,
     logoUrl: doc.logo_url as string | undefined,
     coverUrl: doc.cover_url as string | undefined,
     address: doc.address as string | undefined,
@@ -106,6 +112,7 @@ export function professionalToDomain(doc: Doc): Professional {
     schedule: scheduleToDomain(doc),
     active: Boolean(doc.active),
     keycloakUserId: doc.keycloak_user_id as string | undefined,
+    phone: doc.phone as string | undefined,
     version: intToNumber(doc.version ?? 1),
   };
 }
@@ -129,16 +136,19 @@ export function appointmentToDomain(doc: Doc): Appointment {
     commissionRateSnapshot: moneyToNumber(doc.commission_rate_snapshot ?? 0),
     planIdSnapshot: String(doc.plan_code_snapshot ?? ''),
     idempotencyKey: doc.idempotency_key as string | undefined,
+    createdAt: doc.created_at ? dateToIso(doc.created_at) : undefined,
     source: (doc.source as Appointment['source']) ?? 'web',
     paymentReference: doc.payment_reference as string | undefined,
     latestPaymentTransactionId: doc.latest_payment_transaction_id
       ? idToStr(doc.latest_payment_transaction_id)
       : undefined,
+    paidAmount: moneyToNumber(doc.paid_amount ?? 0),
     clientInfo: {
       clientId: client.client_id as string | undefined,
       name: String(client.name ?? ''),
       phone: client.phone as string | undefined,
       email: client.email as string | undefined,
+      documentId: client.document_id as string | undefined,
       habeasDataAcceptedAt: client.habeas_data_accepted_at ? dateToIso(client.habeas_data_accepted_at) : '',
       ip: client.ip as string | undefined,
       userAgent: client.user_agent as string | undefined,

@@ -57,7 +57,7 @@ describe('myTenants + ensureClientMembership (integration)', () => {
 
     const rows = await ctx.services.tenants.myTenants({ keycloakUserId: kc });
     expect(rows).toEqual([
-      { tenantId: tenant.tenantId, slug: 'barber-estilo', name: 'Barber Estilo', role: 'client' },
+      { tenantId: tenant.tenantId, slug: 'barber-estilo', name: 'Barber Estilo', role: 'client', roles: ['client'] },
     ]);
   });
 

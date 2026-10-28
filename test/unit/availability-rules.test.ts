@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCapacitySlots,
   buildSlots,
   fitForDuration,
   reasonForStart,
   weeklyScheduleForDay,
 } from '../../src/domain/rules/availability-rules';
-import { WeeklySchedule } from '../../src/domain/entities/catalog';
+import {
+  emptyWeeklySchedule,
+  normalizeWeeklySchedule,
+  WeeklySchedule,
+} from '../../src/domain/entities/catalog';
 
 const FULL_WEEK: WeeklySchedule = {
   monday: [{ start: '09:00', end: '18:00' }],
@@ -25,6 +30,64 @@ describe('weeklyScheduleForDay', () => {
   });
   it('returns empty for a rest day', () => {
     expect(weeklyScheduleForDay(FULL_WEEK, 0)).toEqual([]);
+  });
+  it('uses the default business hours when the whole schedule is empty', () => {
+    const schedule = emptyWeeklySchedule();
+    expect(weeklyScheduleForDay(schedule, 1)).toEqual([{ start: '09:00', end: '18:00' }]);
+    expect(weeklyScheduleForDay(schedule, 6)).toEqual([{ start: '09:00', end: '18:00' }]);
+    expect(weeklyScheduleForDay(schedule, 0)).toEqual([]);
+  });
+  it('keeps a day off when the schedule has other working days', () => {
+    const schedule = { ...emptyWeeklySchedule(), monday: [{ start: '09:00', end: '13:00' }] };
+    expect(weeklyScheduleForDay(schedule, 1)).toEqual([{ start: '09:00', end: '13:00' }]);
+    expect(weeklyScheduleForDay(schedule, 2)).toEqual([]);
+  });
+});
+
+describe('normalizeWeeklySchedule', () => {
+  it('fills every day key and keeps valid intervals only', () => {
+    const normalized = normalizeWeeklySchedule({
+      monday: [{ start: '09:00', end: '18:00' }, { start: 'BAD', end: '18:00' }],
+      sunday: 'not-an-array',
+    });
+    expect(Object.keys(normalized).sort()).toEqual([
+      'friday',
+      'monday',
+      'saturday',
+      'sunday',
+      'thursday',
+      'tuesday',
+      'wednesday',
+    ]);
+    expect(normalized.monday).toEqual([{ start: '09:00', end: '18:00' }]);
+    expect(normalized.sunday).toEqual([]);
+  });
+});
+
+describe('availability for a professional without a configured schedule', () => {
+  it('still produces available slots on a weekday', () => {
+    const mondayStart = Date.UTC(2026, 2, 23); // Monday
+    const intervals = weeklyScheduleForDay(emptyWeeklySchedule(), 1).map((w) => {
+      const [sh = 0, sm = 0] = w.start.split(':').map(Number);
+      const [eh = 0, em = 0] = w.end.split(':').map(Number);
+      return {
+        start: mondayStart + (sh * 60 + sm) * 60_000,
+        end: mondayStart + (eh * 60 + em) * 60_000,
+      };
+    });
+    const slots = buildSlots({
+      shiftIntervals: intervals,
+      granularityMinutes: 30,
+      occupied: [],
+      blocked: [],
+      now: mondayStart,
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots.some((s) => s.available)).toBe(true);
+  });
+
+  it('produces no slots on sunday (rest day)', () => {
+    expect(weeklyScheduleForDay(emptyWeeklySchedule(), 0)).toEqual([]);
   });
 });
 
@@ -108,5 +171,64 @@ describe('reasonForStart', () => {
     expect(
       reasonForStart(dayStart, 30, [], [{ start: dayStart, end: dayStart + 60 * 60_000 }]),
     ).toBe('block');
+  });
+});
+describe('buildCapacitySlots', () => {
+  const start = Date.UTC(2026, 2, 23, 9, 0); // Monday 09:00
+  const shift = [{ start, end: start + 3 * 60 * 60_000 }];
+
+  it('permite varias reservas simultáneas hasta la capacidad', () => {
+    const occupied = [
+      { start, end: start + 30 * 60_000 },
+      { start, end: start + 30 * 60_000 },
+    ];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied,
+      blocked: [],
+      durationMinutes: 30,
+      capacity: 2,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const second = slots.find((s) => new Date(s.start).getTime() === start + 30 * 60_000)!;
+    expect(first.available).toBe(false);
+    expect(first.reason).toBe('booked');
+    expect(second.available).toBe(true);
+  });
+
+  it('cuenta solapamientos con la duración real del servicio', () => {
+    const occupied = [{ start, end: start + 60 * 60_000 }];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied,
+      blocked: [],
+      durationMinutes: 60,
+      capacity: 2,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const second = slots.find((s) => new Date(s.start).getTime() === start + 30 * 60_000)!;
+    expect(first.available).toBe(true);
+    expect(second.available).toBe(true);
+  });
+
+  it('respeta bloqueos del profesional y la duración dentro del turno', () => {
+    const blocked = [{ start: start + 30 * 60_000, end: start + 60 * 60_000 }];
+    const slots = buildCapacitySlots({
+      shiftIntervals: shift,
+      granularityMinutes: 30,
+      occupied: [],
+      blocked,
+      durationMinutes: 60,
+      capacity: 10,
+      now: start,
+    });
+    const first = slots.find((s) => new Date(s.start).getTime() === start)!;
+    const last = slots.find((s) => new Date(s.start).getTime() === start + 150 * 60_000)!;
+    expect(first.blocked).toBe(true);
+    expect(last.reason).toBe('gap');
   });
 });

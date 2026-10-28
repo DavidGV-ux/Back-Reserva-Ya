@@ -1,17 +1,21 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { AppServices } from '../../../application/container';
-import { NotFoundError, ValidationError } from '../../../shared/errors';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
-import { MockPaymentEvent } from '../../../infrastructure/integrations/payments/mock-payment';
-import { z } from 'zod';
+import { buildMockPaymentEvent, demoEventSchema, DemoPaymentAction } from '../../../infrastructure/integrations/payments/mock-payment';
 import { param } from './params';
 
-const demoEventSchema = z.object({
-  reference: z.string().min(1),
-  amount: z.number().positive(),
-  currency: z.enum(['COP', 'USD']),
-  tenantId: z.string().optional(),
-});
+interface RawBodyRequest extends Request {
+  rawBody?: string;
+}
+
+function toEnvelope(req: RawBodyRequest) {
+  return {
+    raw: req.rawBody,
+    headers: req.headers as Record<string, unknown>,
+    body: req.body,
+  };
+}
 
 export function webhookRouter(services: AppServices): Router {
   const router = Router();
@@ -20,7 +24,10 @@ export function webhookRouter(services: AppServices): Router {
     '/payments',
     asyncRoute(async (req, res) => {
       const tenantId = typeof req.headers['x-tenant-id'] === 'string' ? req.headers['x-tenant-id'] : undefined;
-      const result = await services.payments.processWebhook({ rawEvent: req.body, tenantId });
+      const result = await services.payments.processWebhook({
+        rawEvent: toEnvelope(req),
+        tenantId,
+      });
       res.status(result.handled ? 200 : 202).json(result);
     }),
   );
@@ -28,26 +35,19 @@ export function webhookRouter(services: AppServices): Router {
   router.post(
     '/demo/payments/:action',
     asyncRoute(async (req, res) => {
+      if (services.payments.provider !== 'mock') {
+        throw new ForbiddenError('demo payment webhook is only available with PAYMENT_PROVIDER=mock');
+      }
       const action = param(req, 'action');
       if (!['approve', 'decline', 'refund'].includes(action)) {
         throw new NotFoundError('demo action', action);
       }
       const parsed = demoEventSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError('invalid demo event', { issues: parsed.error.issues });
-      const body = parsed.data;
-
-      let event: MockPaymentEvent;
-      if (action === 'approve') {
-        event = { type: 'payment.charge.approved', data: { ...body } };
-      } else if (action === 'decline') {
-        event = { type: 'payment.charge.declined', data: { ...body } };
-      } else {
-        event = { type: 'payment.refund.approved', data: { ...body } };
-      }
 
       const result = await services.payments.processWebhook({
-        rawEvent: event,
-        tenantId: body.tenantId,
+        rawEvent: buildMockPaymentEvent(action as DemoPaymentAction, parsed.data),
+        tenantId: parsed.data.tenantId,
       });
       res.status(result.handled ? 200 : 202).json(result);
     }),

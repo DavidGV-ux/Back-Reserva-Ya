@@ -2,7 +2,7 @@ import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { AppointmentStatus } from '../../../domain/entities/types';
 import { SlotView } from '../../../domain/entities/availability';
 import { AppointmentRepository, AvailabilityBlockRepository, ProfessionalRepository } from '../../../domain/ports/repositories';
-import { buildSlots, weeklyScheduleForDay } from '../../../domain/rules/availability-rules';
+import { buildCapacitySlots, buildSlots, weeklyScheduleForDay } from '../../../domain/rules/availability-rules';
 import { addDaysUtc, todayUtcParts, utcLocalStartMs } from '../../../shared/timezone';
 
 const OCCUPIED_STATUSES: AppointmentStatus[] = ['confirmed', 'pending_payment'];
@@ -49,6 +49,8 @@ export class AvailabilityUseCases {
     durationMinutes: number;
     timezone: string;
     granularityMinutes: number;
+    capacity?: number;
+    capacityMode?: boolean;
     now?: Date;
   }): Promise<SlotView[]> {
     const professional = await this.repos.professionals.findById(input.tenantId, input.professionalId);
@@ -67,8 +69,13 @@ export class AvailabilityUseCases {
     const from = new Date(dayStart).toISOString();
     const to = new Date(dayEnd).toISOString();
 
+    const capacityMode = Boolean(input.capacityMode);
+    const capacity = Math.max(1, Math.floor(Number(input.capacity) || 1));
+
     const [appointments, blocks] = await Promise.all([
-      this.repos.appointments.findByProfessional(input.tenantId, input.professionalId, from, to),
+      capacityMode
+        ? this.repos.appointments.findOverlappingByTenant(input.tenantId, from, to)
+        : this.repos.appointments.findByProfessional(input.tenantId, input.professionalId, from, to),
       this.repos.availabilityBlocks.findActiveByProfessional(input.tenantId, input.professionalId, from, to),
     ]);
 
@@ -85,6 +92,18 @@ export class AvailabilityUseCases {
         end: dayStart + (((eh * 60 + em) / input.granularityMinutes) * input.granularityMinutes) * 60_000,
       };
     });
+
+    if (capacityMode) {
+      return buildCapacitySlots({
+        shiftIntervals: intervals,
+        granularityMinutes: input.granularityMinutes,
+        occupied,
+        blocked,
+        durationMinutes: input.durationMinutes,
+        capacity,
+        now: now.getTime(),
+      });
+    }
 
     const slots = buildSlots({
       shiftIntervals: intervals,
