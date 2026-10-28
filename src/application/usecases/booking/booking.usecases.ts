@@ -119,24 +119,26 @@ export class BookingUseCases {
       throw new ValidationError(`startTime must be aligned to ${granularity} minute slots`);
     }
 
+    const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
+    if (input.idempotencyKey) {
+      const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
+      if (existing) {
+        return {
+          appointment: existing,
+          intent: await this.buildIntent({
+            tenantId: input.tenantId,
+            advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
+            currency: tenant.currency,
+            paymentReference: existing.paymentReference ?? '',
+          }),
+          replay: true,
+        };
+      }
+    }
+
     const conflicts = await this.findOverlaps(input.tenantId, professional.id, startMs, endMs);
     if (conflicts) {
       throw new ConflictError('AVAILABILITY_CONFLICT', 'slot is no longer available');
-    }
-
-    const idempotencyKey = input.idempotencyKey ?? `${input.actor}-${uuid()}`;
-    const existing = await this.repos.appointments.findByIdempotencyKey(input.tenantId, idempotencyKey);
-    if (existing) {
-      return {
-        appointment: existing,
-        intent: await this.buildIntent({
-          tenantId: input.tenantId,
-          advanceAmount: computeAdvance({ service, plan, tenantSettings: tenant.settings }),
-          currency: tenant.currency,
-          paymentReference: existing.paymentReference ?? '',
-        }),
-        replay: true,
-      };
     }
 
     const clientInfo = clientInfoFrom(input.clientInfo);

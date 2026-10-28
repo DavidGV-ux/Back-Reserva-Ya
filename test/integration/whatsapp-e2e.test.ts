@@ -1,15 +1,180 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
+import express, { Request, Response } from 'express';
 import { Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { TestDb, testDb } from '../helpers/mongo';
 import { seedShop, nextMondayBogota, bogotaIso, SeededShop } from '../helpers/fixtures';
 import { buildApp } from '../../src/entrypoints/http/server';
 import { KeycloakVerifier } from '../../src/infrastructure/auth/keycloak';
-import { signMetaPayload } from '../../../ReservaYa-Whatsapp/src/security/meta-signature';
-import { SqsMessageQueue } from '../../../ReservaYa-Whatsapp/src/queue/sqs-queue';
-import { GroqAiIntentExtractor } from '../../../ReservaYa-Whatsapp/src/ai/intent-extractor';
-import { WhatsappBotService } from '../../../ReservaYa-Whatsapp/src/pipeline/whatsapp-bot.service';
-import { buildBotApp } from '../../../ReservaYa-Whatsapp/src/server';
+
+interface RawBodyReq extends Request {
+  rawBody?: Buffer;
+}
+
+function signMetaPayload(rawBody: string, appSecret: string): string {
+  const digest = crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
+  return `sha256=${digest}`;
+}
+
+function verifyMetaSignature(
+  rawBody: Buffer | undefined,
+  signatureHeader: string | undefined,
+  appSecret: string,
+): boolean {
+  if (!rawBody || !signatureHeader || !signatureHeader.startsWith('sha256=')) {
+    return false;
+  }
+  const receivedHex = signatureHeader.slice('sha256='.length);
+  const expectedHex = crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
+  const receivedBuf = Buffer.from(receivedHex, 'hex');
+  const expectedBuf = Buffer.from(expectedHex, 'hex');
+  if (receivedBuf.length === 0 || receivedBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(receivedBuf, expectedBuf);
+}
+
+/**
+ * Simulador autónomo del receptor Webhook de WhatsApp para validar el contrato E2E
+ * de `Back-Reserva-Ya` en CI/CD sin acoplar rutas físicas entre repositorios.
+ */
+function buildStandaloneWhatsappWebhookSimulator(deps: {
+  metaAppSecret: string;
+  whatsappBotSecret: string;
+  backBaseUrl: string;
+  defaultTenantSlug: string;
+  defaultStartTimeIso: string;
+}) {
+  const app = express();
+  const processedWamids = new Set<string>();
+
+  app.use(
+    express.json({
+      verify: (req: RawBodyReq, _res, buf) => {
+        req.rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+
+  app.post('/webhook/whatsapp', async (req: RawBodyReq, res: Response) => {
+    const signature = req.header('x-hub-signature-256');
+    if (!verifyMetaSignature(req.rawBody, signature, deps.metaAppSecret)) {
+      res.status(401).json({ error: 'invalid_meta_signature' });
+      return;
+    }
+
+    const change = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const message = change?.messages?.[0];
+    const contact = change?.contacts?.[0];
+    if (!message?.id || !message?.from) {
+      res.status(200).json({ status: 'ignored', enqueued: false, deduplicated: false });
+      return;
+    }
+
+    if (processedWamids.has(message.id)) {
+      res.status(200).json({ status: 'accepted', enqueued: false, deduplicated: true });
+      return;
+    }
+    processedWamids.add(message.id);
+
+    const fromPhone = `+${String(message.from).replace(/^\+/, '')}`;
+    const textBody = String(message.text?.body ?? '');
+    const clientName = String(contact?.profile?.name ?? 'Cliente WhatsApp');
+    const emailMatch = textBody.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+
+    // 1. Consultar identidad por teléfono y resolver tenant/catálogo en Back-Reserva-Ya
+    await fetch(
+      `${deps.backBaseUrl}/api/public/whatsapp/lookup?phone=${encodeURIComponent(fromPhone)}`,
+      { headers: { 'x-whatsapp-secret': deps.whatsappBotSecret } },
+    );
+
+    const tenantRes = await fetch(
+      `${deps.backBaseUrl}/api/public/tenants/${encodeURIComponent(deps.defaultTenantSlug)}`,
+    );
+    const tenant = (await tenantRes.json()) as { tenantId: string; slug: string; name: string };
+
+    const [servicesRes, profsRes] = await Promise.all([
+      fetch(`${deps.backBaseUrl}/api/public/${encodeURIComponent(tenant.tenantId)}/services`),
+      fetch(`${deps.backBaseUrl}/api/public/${encodeURIComponent(tenant.tenantId)}/professionals`),
+    ]);
+    const services = (await servicesRes.json()) as Array<{ id: string; name: string }>;
+    const professionals = (await profsRes.json()) as Array<{ id: string; name: string }>;
+
+    const matchedService =
+      services.find((s) => textBody.toLowerCase().includes(s.name.toLowerCase())) ?? services[0];
+    const matchedProfessional =
+      professionals.find((p) => textBody.toLowerCase().includes(p.name.toLowerCase())) ??
+      professionals[0];
+
+    // 2. Crear la reserva en Back-Reserva-Ya con source: 'whatsapp'
+    const bookingRes = await fetch(
+      `${deps.backBaseUrl}/api/public/${encodeURIComponent(tenant.tenantId)}/appointments`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          serviceId: matchedService!.id,
+          professionalId: matchedProfessional!.id,
+          startTime: deps.defaultStartTimeIso,
+          clientInfo: {
+            name: clientName,
+            phone: fromPhone,
+            email: emailMatch ? emailMatch[0] : 'cliente.whatsapp@reservaya.co',
+            habeasDataConsent: true,
+          },
+          source: 'whatsapp',
+          idempotencyKey: `wa-${message.id}`,
+        }),
+      },
+    );
+
+    if (!bookingRes.ok) {
+      const errorText = await bookingRes.text();
+      res.status(bookingRes.status).json({ error: errorText });
+      return;
+    }
+
+    const bookingData = (await bookingRes.json()) as {
+      appointment: { id: string };
+      intent: { advanceAmount: number; paymentReference: string };
+    };
+
+    // 3. Generar sesión / enlace de pago del anticipo en Back-Reserva-Ya
+    const sessionRes = await fetch(
+      `${deps.backBaseUrl}/api/public/${encodeURIComponent(tenant.tenantId)}/appointments/${encodeURIComponent(bookingData.appointment.id)}/payment-session`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'advance' }),
+      },
+    );
+
+    let paymentLink = `http://localhost:4200/t/${tenant.slug}/pay/${bookingData.appointment.id}`;
+    if (sessionRes.ok) {
+      const sessionData = (await sessionRes.json()) as { checkoutUrl?: string; token?: string };
+      if (sessionData.checkoutUrl) {
+        paymentLink = sessionData.checkoutUrl;
+      } else if (sessionData.token) {
+        paymentLink = `${paymentLink}?session=${encodeURIComponent(sessionData.token)}`;
+      }
+    }
+
+    res.status(200).json({
+      status: 'accepted',
+      enqueued: true,
+      deduplicated: false,
+      result: {
+        appointmentId: bookingData.appointment.id,
+        paymentReference: bookingData.intent.paymentReference,
+        paymentLink,
+        advanceAmount: bookingData.intent.advanceAmount,
+      },
+    });
+  });
+
+  return app;
+}
 
 describe('E2E WhatsApp -> Reserva -> Link de Pago -> Confirmación -> Recordatorio (B-04, B-07)', () => {
   let ctx: TestDb;
@@ -18,7 +183,6 @@ describe('E2E WhatsApp -> Reserva -> Link de Pago -> Confirmación -> Recordator
   let botServer: Server;
   let backBaseUrl: string;
   let botBaseUrl: string;
-  let botService: WhatsappBotService;
   const metaSecret = 'e2e-meta-app-secret-2026';
   const botSecret = 'e2e-whatsapp-bot-secret-2026';
   let targetSlotIso: string;
@@ -43,20 +207,12 @@ describe('E2E WhatsApp -> Reserva -> Link de Pago -> Confirmación -> Recordator
     const backPort = (backServer.address() as AddressInfo).port;
     backBaseUrl = `http://127.0.0.1:${backPort}`;
 
-    botService = new WhatsappBotService({
-      backApiBaseUrl: backBaseUrl,
-      whatsappBotSecret: botSecret,
-      defaultTenantSlug: fixture.tenant.slug,
-      defaultStartTimeIso: targetSlotIso,
-      queue: new SqsMessageQueue(),
-      extractor: new GroqAiIntentExtractor(),
-    });
-
-    const botApp = buildBotApp({
-      metaVerifyToken: 'e2e-verify-token',
+    const botApp = buildStandaloneWhatsappWebhookSimulator({
       metaAppSecret: metaSecret,
       whatsappBotSecret: botSecret,
-      botService,
+      backBaseUrl,
+      defaultTenantSlug: fixture.tenant.slug,
+      defaultStartTimeIso: targetSlotIso,
     });
 
     await new Promise<void>((resolve) => {
