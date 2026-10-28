@@ -6,7 +6,7 @@ import { Notification } from '../entities/notifications';
 import { Plan, Tenant } from '../entities/tenant';
 import { PlatformUser, TenantUser } from '../entities/notifications';
 import { UserProfile } from '../entities/profile';
-import { AppointmentStatus, SlotOccupation } from '../entities/types';
+import { AppointmentStatus, NotificationChannel, NotificationType, SlotOccupation } from '../entities/types';
 
 export interface Page<T> {
   items: T[];
@@ -64,6 +64,7 @@ export interface AppointmentRepository {
   countByTenant(tenantId: string, since?: string): Promise<number>;
   findByProfessional(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
   findOverlapping(tenantId: string, professionalId: string, from: string, to: string): Promise<Appointment[]>;
+  findOverlappingByTenant(tenantId: string, from: string, to: string): Promise<Appointment[]>;
   findOccupiedIds(tenantId: string): Promise<string[]>;
   findHistoryByClient(
     input: { tenantId: string; clientId?: string; phone?: string; email?: string; documentId?: string },
@@ -142,6 +143,8 @@ export interface PaymentTransactionRepository {
 export interface LedgerRepository {
   create(entry: LedgerEntry): Promise<LedgerEntry>;
   findByTenant(tenantId: string, limit?: number): Promise<LedgerEntry[]>;
+  /** Todos los asientos con timestamp en [from, to) (ISO), del más reciente al más antiguo. */
+  findByTenantRange(tenantId: string, from: string, to: string): Promise<LedgerEntry[]>;
   findByAppointment(tenantId: string, appointmentId: string): Promise<LedgerEntry[]>;
 }
 
@@ -149,6 +152,14 @@ export interface NotificationRepository {
   create(notification: Notification): Promise<Notification>;
   markSent(id: string, providerMessageId?: string): Promise<void>;
   markFailed(id: string, error: string): Promise<void>;
+  markFallbackSent?(id: string, providerMessageId?: string, error?: string): Promise<void>;
+  findByAppointmentTypeChannel?(
+    tenantId: string,
+    appointmentId: string,
+    type: NotificationType,
+    channel: NotificationChannel,
+  ): Promise<Notification | null>;
+  findByAppointment?(tenantId: string, appointmentId: string): Promise<Notification[]>;
 }
 
 export interface TenantUserRepository {

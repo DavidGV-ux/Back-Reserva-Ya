@@ -29,13 +29,19 @@ provider:
     PAYU_BASE_URL: ${env:PAYU_BASE_URL, 'https://api.payulatam.com'}
     FRONT_BASE_URL: ${env:FRONT_BASE_URL, 'https://d1ydnh3hbo1zxr.cloudfront.net'}
     PAYMENT_SESSION_SECRET: ${env:PAYMENT_SESSION_SECRET, 'dev-reservaya-payment-session-secret'}
-    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'mock'}
+    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'resend'}
+    RESEND_API_KEY: ${env:RESEND_API_KEY, ''}
+    RESEND_FROM_EMAIL: ${env:RESEND_FROM_EMAIL, 'ReservaYa <notificaciones@reservaya.co>'}
+    WHATSAPP_ACCESS_TOKEN: ${env:WHATSAPP_ACCESS_TOKEN, ''}
+    WHATSAPP_PHONE_NUMBER_ID: ${env:WHATSAPP_PHONE_NUMBER_ID, ''}
+    META_VERIFY_TOKEN: ${env:META_VERIFY_TOKEN, ''}
+    META_APP_SECRET: ${env:META_APP_SECRET, ''}
     WHATSAPP_BOT_SECRET: ${env:WHATSAPP_BOT_SECRET, ''}
     WHATSAPP_EVENTS_ENDPOINT: ${env:WHATSAPP_EVENTS_ENDPOINT, ''}
     CANCELLATION_PROCESSING_FEE_RATE: ${env:CANCELLATION_PROCESSING_FEE_RATE, '0'}
-    R2_ACCOUNT_ID: ${env:R2_ACCOUNT_ID}
-    R2_ACCESS_KEY_ID: ${env:R2_ACCESS_KEY_ID}
-    R2_SECRET_ACCESS_KEY: ${env:R2_SECRET_ACCESS_KEY}
+    R2_ACCOUNT_ID: ${env:R2_ACCOUNT_ID, ''}
+    R2_ACCESS_KEY_ID: ${env:R2_ACCESS_KEY_ID, ''}
+    R2_SECRET_ACCESS_KEY: ${env:R2_SECRET_ACCESS_KEY, ''}
     R2_BUCKET_NAME: ${env:R2_BUCKET_NAME, 'reservaya-backups'}
     BACKUP_RETENTION_DAYS: ${env:BACKUP_RETENTION_DAYS, '30'}
 
@@ -46,8 +52,7 @@ functions:
       - httpApi: "*"
     timeout: 30
     memorySize: 256
-  
-    export-backup-r2:
+  export-backup-r2:
     handler: dist-lambda/backup.lambdaHandler
     events:
       - schedule: cron(0 2 * * ? *)
@@ -65,6 +70,13 @@ functions:
     handler: dist-lambda/scheduled.repairTimeSlotsHandler
     events:
       - schedule: rate(15 minutes)
+    timeout: 60
+    memorySize: 256
+
+  send-reminders:
+    handler: dist-lambda/scheduled.sendRemindersHandler
+    events:
+      - schedule: rate(5 minutes)
     timeout: 60
     memorySize: 256
 

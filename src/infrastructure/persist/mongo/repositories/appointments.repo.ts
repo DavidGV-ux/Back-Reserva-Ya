@@ -110,6 +110,21 @@ export class AppointmentMongoRepository implements AppointmentRepository {
     return docs.map((d) => appointmentToDomain(d));
   }
 
+  async findOverlappingByTenant(tenantId: string, from: string, to: string): Promise<Appointment[]> {
+    const docs = await this.collection
+      .find(
+        {
+          tenant_id: tenantId,
+          start_time: { $lt: new Date(to) },
+          end_time: { $gt: new Date(from) },
+        },
+        { session: this.session },
+      )
+      .sort({ start_time: 1 })
+      .toArray();
+    return docs.map((d) => appointmentToDomain(d));
+  }
+
   async findOccupiedIds(tenantId: string): Promise<string[]> {
     const docs = await this.collection
       .find(

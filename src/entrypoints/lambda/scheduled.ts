@@ -30,4 +30,19 @@ export async function repairTimeSlotsHandler(): Promise<{ statusCode: number; bo
   }
 }
 
+export async function sendRemindersHandler(): Promise<{ statusCode: number; body: string }> {
+  const boot = await bootstrap();
+  try {
+    const result = await boot.services.notifications.dispatchDueReminders();
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({ event: 'send-reminders', ...result }));
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ event: 'send-reminders', ...result }),
+    };
+  } finally {
+    await boot.shutdown();
+  }
+}
+
 export const handler = expiredPaymentsHandler;

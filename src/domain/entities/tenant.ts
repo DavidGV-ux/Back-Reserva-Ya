@@ -48,6 +48,15 @@ export interface TenantConfig {
   preferredNotificationChannel: 'whatsapp' | 'email' | 'sms';
   reminderHours: number;
   whatsappPhoneNumberId?: string;
+  /**
+   * `exclusive`: cada profesional atiende una sola reserva a la vez
+   * (barberías, clínicas, etc.).
+   * `capacity`: el negocio atiende varias reservas simultáneas hasta
+   * `capacityPerSlot` (cafés, restaurantes, eventos).
+   * Si no se define, se infiere de la categoría del negocio.
+   */
+  bookingMode?: 'exclusive' | 'capacity';
+  capacityPerSlot?: number;
 }
 
 export interface Tenant {

@@ -18,7 +18,18 @@ export const env = {
   oidcAdminClientId: required('OIDC_ADMIN_CLIENT_ID', 'reserwaya-back'),
   oidcAdminClientSecret: required('OIDC_ADMIN_CLIENT_SECRET', ''),
   paymentProvider: required('PAYMENT_PROVIDER', 'mock'),
-  whatsappProvider: required('WHATSAPP_PROVIDER', 'mock'),
+  whatsappProvider: required(
+    'WHATSAPP_PROVIDER',
+    process.env.NODE_ENV === 'production' ? 'resend' : 'mock',
+  ),
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  resendFromEmail: process.env.RESEND_FROM_EMAIL ?? 'ReservaYa <notificaciones@reservaya.co>',
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? '',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
+  whatsappApiVersion: process.env.WHATSAPP_API_VERSION ?? 'v22.0',
+  metaVerifyToken: process.env.META_VERIFY_TOKEN ?? '',
+  metaAppSecret: process.env.META_APP_SECRET ?? '',
+  notificationFallbackDelayMs: Number(process.env.NOTIFICATION_FALLBACK_DELAY_MS ?? 50),
   cancellationProcessingFeeRate: Number(process.env.CANCELLATION_PROCESSING_FEE_RATE ?? 0),
   wompiEnvironment: ((process.env.WOMPI_ENVIRONMENT && process.env.WOMPI_ENVIRONMENT.trim().length > 0
     ? process.env.WOMPI_ENVIRONMENT

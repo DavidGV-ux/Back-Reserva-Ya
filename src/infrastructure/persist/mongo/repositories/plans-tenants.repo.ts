@@ -121,6 +121,10 @@ export class TenantMongoRepository implements TenantRepository {
       ...(tenant.settings.whatsappPhoneNumberId
         ? { whatsapp_phone_number_id: tenant.settings.whatsappPhoneNumberId }
         : {}),
+      ...(tenant.settings.bookingMode ? { booking_mode: tenant.settings.bookingMode } : {}),
+      ...(tenant.settings.capacityPerSlot
+        ? { capacity_per_slot: bsonInt(tenant.settings.capacityPerSlot) }
+        : {}),
     };
     const doc = auditCreate(
       {

@@ -15,6 +15,7 @@ import {
   buildLedgerForRefund,
 } from '../../../domain/rules/payments-rules';
 import { hexId } from '../../../shared/id';
+import { NotificationsUseCases } from '../notifications/notifications.usecases';
 
 export interface PaymentEventResult {
   handled: boolean;
@@ -43,6 +44,7 @@ export class PaymentsUseCases {
       availabilityBlocks: AvailabilityBlockRepository;
       timeSlots: TimeSlotRepository;
     },
+    private readonly notifications?: NotificationsUseCases,
   ) {}
 
   get provider(): string {
@@ -53,37 +55,43 @@ export class PaymentsUseCases {
     const event = await this.gateway.confirmEvent(input.rawEvent);
     const requestedTenantId = (event.metadata?.tenantId as string | undefined) ?? input.tenantId;
 
-    return this.uow.withTransaction(async (tx) => {
+    const result = await this.uow.withTransaction(async (tx) => {
       const alreadyProcessed = await tx.paymentTransactions.findByProviderEvent(
         event.provider,
         event.providerEventId,
       );
-      if (alreadyProcessed) return { handled: false, reason: 'duplicate', transaction: alreadyProcessed };
+      if (alreadyProcessed) return { handled: false, reason: 'duplicate' as const, transaction: alreadyProcessed };
 
       const existing = await tx.paymentTransactions.findByInternalReference(
         requestedTenantId,
         event.internalReference,
       );
-      if (!existing) return { handled: false, reason: 'unknown_reference' };
+      if (!existing) return { handled: false, reason: 'unknown_reference' as const };
 
       const tenantId = existing.tenantId;
       const appointment = await tx.appointments.findById(tenantId, existing.appointmentId);
       if (!appointment) throw new NotFoundError('Appointment', existing.appointmentId);
 
       if (existing.status === 'approved') {
-        return { handled: false, reason: 'duplicate', transaction: existing, appointment };
+        return { handled: false, reason: 'duplicate' as const, transaction: existing, appointment };
       }
 
       if (event.status === 'pending') {
-        return { handled: false, reason: 'pending', transaction: existing, appointment };
+        return { handled: false, reason: 'pending' as const, transaction: existing, appointment };
       }
 
       if (event.operation === 'charge') {
-        return this.applyChargeEvent(tx, existing, appointment, {
-          providerTransactionId: event.providerTransactionId,
-          providerEventId: event.providerEventId,
-          status: event.status,
-        }, 'payment-gateway');
+        return this.applyChargeEvent(
+          tx,
+          existing,
+          appointment,
+          {
+            providerTransactionId: event.providerTransactionId,
+            providerEventId: event.providerEventId,
+            status: event.status,
+          },
+          'payment-gateway',
+        );
       }
 
       if (event.operation === 'refund') {
@@ -119,8 +127,31 @@ export class PaymentsUseCases {
         return { handled: true, transaction: approved, appointment: updated };
       }
 
-return { handled: false, reason: 'unknown_reference' as const };
-      });
+      return { handled: false, reason: 'unknown_reference' as const };
+    });
+
+    // B-02: Emitir notificación de confirmación + recibo de pago cuando el cargo ha sido aprobado
+    if (
+      result.handled &&
+      result.appointment?.status === 'confirmed' &&
+      result.transaction?.operation === 'charge' &&
+      result.transaction?.status === 'approved' &&
+      this.notifications
+    ) {
+      const tenant = await this.repos.tenants
+        .findById(result.appointment.tenantId)
+        .catch(() => null);
+      await this.notifications
+        .notifyAppointmentEvent({
+          appointment: result.appointment,
+          tenant: tenant ?? undefined,
+          type: 'confirmation',
+          paidAmount: result.transaction.amount,
+        })
+        .catch(() => undefined);
+    }
+
+    return result;
   }
 
   private async applyChargeEvent(
@@ -189,21 +220,21 @@ return { handled: false, reason: 'unknown_reference' as const };
   }
 
   async reconcilePayment(input: { tenantId: string; appointmentId: string; actor?: string }): Promise<PaymentEventResult> {
-    return this.uow.withTransaction(async (tx) => {
+    const result = await this.uow.withTransaction(async (tx) => {
       const appointment = await tx.appointments.findById(input.tenantId, input.appointmentId);
-      if (!appointment) return { handled: false, reason: 'unknown_reference' };
+      if (!appointment) return { handled: false, reason: 'unknown_reference' as const };
       if (appointment.status !== 'pending_payment' || appointment.paymentStatus !== 'pending') {
-        return { handled: false, reason: 'pending' };
+        return { handled: false, reason: 'pending' as const };
       }
 
       const reference = appointment.paymentReference;
-      if (!reference) return { handled: false, reason: 'unknown_reference' };
+      if (!reference) return { handled: false, reason: 'unknown_reference' as const };
 
       const existing = await tx.paymentTransactions.findByInternalReference(input.tenantId, reference);
-      if (!existing || existing.status !== 'pending') return { handled: false, reason: 'pending' };
+      if (!existing || existing.status !== 'pending') return { handled: false, reason: 'pending' as const };
 
       const remote = await this.gateway.fetchChargeStatus({ internalReference: reference });
-      if (!remote || remote.status === 'pending') return { handled: false, reason: 'pending' };
+      if (!remote || remote.status === 'pending') return { handled: false, reason: 'pending' as const };
 
       return this.applyChargeEvent(
         tx,
@@ -217,6 +248,27 @@ return { handled: false, reason: 'unknown_reference' as const };
         input.actor ?? 'payment-gateway',
       );
     });
+
+    if (
+      result.handled &&
+      result.appointment?.status === 'confirmed' &&
+      result.transaction?.status === 'approved' &&
+      this.notifications
+    ) {
+      const tenant = await this.repos.tenants
+        .findById(result.appointment.tenantId)
+        .catch(() => null);
+      await this.notifications
+        .notifyAppointmentEvent({
+          appointment: result.appointment,
+          tenant: tenant ?? undefined,
+          type: 'confirmation',
+          paidAmount: result.transaction.amount,
+        })
+        .catch(() => undefined);
+    }
+
+    return result;
   }
 
   async expirePendingPayments(input?: { now?: string; maxToProcess?: number }): Promise<ExpiryResult> {

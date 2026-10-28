@@ -26,6 +26,8 @@ const onboardingSchema = z.object({
       cancellationToleranceHours: z.number().optional(),
       upfrontPercent: z.number().min(0).max(100).optional(),
       slotGranularityMinutes: z.number().optional(),
+      bookingMode: z.enum(['exclusive', 'capacity']).optional(),
+      capacityPerSlot: z.number().int().min(1).max(500).optional(),
       paymentTimeoutMinutes: z.number().optional(),
       preferredNotificationChannel: z.enum(['whatsapp', 'email', 'sms']).optional(),
     })
@@ -69,6 +71,8 @@ export function onboardingRouter(services: AppServices, verifier: KeycloakVerifi
               cancellationToleranceHours: body.settings?.cancellationToleranceHours,
               advancePaymentPercentage: body.settings?.upfrontPercent,
               slotGranularityMinutes: body.settings?.slotGranularityMinutes,
+            bookingMode: body.settings?.bookingMode,
+            capacityPerSlot: body.settings?.capacityPerSlot,
               paymentTimeoutMinutes: body.settings?.paymentTimeoutMinutes,
               preferredNotificationChannel: body.settings?.preferredNotificationChannel,
             }

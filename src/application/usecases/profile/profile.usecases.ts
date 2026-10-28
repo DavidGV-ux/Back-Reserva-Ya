@@ -61,12 +61,14 @@ export class ProfileUseCases {
 
   async #sendInvite(profile: UserProfile): Promise<boolean> {
     try {
-      await publishUserInvite({
+      // publishUserInvite devuelve false si el endpoint del bot respondió con
+      // error (por ejemplo, WhatsApp rechazó el mensaje). En ese caso NO se
+      // marca inviteSentAt para reintentar en el próximo guardado del perfil.
+      return await publishUserInvite({
         phone: profile.phone,
         name: profile.name,
         city: profile.city,
       });
-      return true;
     } catch {
       return false;
     }

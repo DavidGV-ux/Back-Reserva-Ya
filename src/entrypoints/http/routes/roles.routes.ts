@@ -351,6 +351,21 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     }),
   );
 
+  router.get(
+    '/owner/:tenantId/reports',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const report = await services.dashboard.ownerReport({
+        tenantId: param(req, 'tenantId'),
+        from: requiredStr(req.query.from),
+        to: requiredStr(req.query.to),
+      });
+      res.json(report);
+    }),
+  );
+
   router.post(
     '/owner/:tenantId/appointments/:appointmentId/cancel',
     requireAuth(verifier),
@@ -411,6 +426,28 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
         actor: req.principal!.sub,
       });
       res.status(201).json(block);
+    }),
+  );
+
+  router.post(
+    '/professional/:tenantId/appointments/:appointmentId/cancel',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['professional']),
+    asyncRoute(async (req, res) => {
+      const tenantId = param(req, 'tenantId');
+      // El profesional sale siempre del token: no se acepta uno enviado por el cliente.
+      const professionalId = await resolveProfessionalForUser(services, tenantId, req.principal!.sub);
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const appointment = await services.booking.cancelAppointment({
+        tenantId,
+        appointmentId: param(req, 'appointmentId'),
+        requestedBy: 'professional',
+        professionalId,
+        reason,
+        actor: req.principal!.sub,
+      });
+      res.json(appointment);
     }),
   );
 

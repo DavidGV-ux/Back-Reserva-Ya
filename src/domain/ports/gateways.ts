@@ -74,11 +74,17 @@ export interface PaymentGatewayProvider {
 export interface NotificationGateway {
   readonly channel: 'whatsapp' | 'email' | 'sms';
   send(input: {
+    notificationId?: string;
     tenantId: string;
     appointmentId: string;
     to: string;
     type: 'confirmation' | 'reminder' | 'cancellation';
     message: string;
+    subject?: string;
+    html?: string;
+    templateName?: string;
+    templateLanguage?: string;
+    templateParams?: string[];
   }): Promise<{ providerMessageId?: string }>;
 }
 
