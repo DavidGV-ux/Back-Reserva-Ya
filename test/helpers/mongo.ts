@@ -70,6 +70,10 @@ export async function testDb(options?: TestDbOptions): Promise<TestDb> {
     paymentGateway: options?.paymentGateway ?? new MockPaymentGateway(),
     notificationGateway: options?.notificationGateway ?? new MockNotificationGateway(),
     identity: new NoopIdentityGateway(),
+    settings: {
+      frontBaseUrl: 'http://localhost:4200',
+      paymentSessionSecret: 'test-payment-session-secret',
+    },
   });
 
   const ctx: TestDb = {
