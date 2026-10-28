@@ -429,6 +429,28 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     }),
   );
 
+  router.post(
+    '/professional/:tenantId/appointments/:appointmentId/cancel',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['professional']),
+    asyncRoute(async (req, res) => {
+      const tenantId = param(req, 'tenantId');
+      // El profesional sale siempre del token: no se acepta uno enviado por el cliente.
+      const professionalId = await resolveProfessionalForUser(services, tenantId, req.principal!.sub);
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const appointment = await services.booking.cancelAppointment({
+        tenantId,
+        appointmentId: param(req, 'appointmentId'),
+        requestedBy: 'professional',
+        professionalId,
+        reason,
+        actor: req.principal!.sub,
+      });
+      res.json(appointment);
+    }),
+  );
+
   // ---------------------------------------------------------------- client
   router.get(
     '/client/:tenantId/appointments',
