@@ -439,7 +439,12 @@ export class BookingUseCases {
     const tenant = await this.repos.tenants.findById(input.tenantId);
     if (!tenant) throw new NotFoundError('Tenant', input.tenantId);
 
-    const advanceAmount = appointment.clientInfo ? computeAdvanceFromAppointment(appointment, tenant.settings.advancePaymentPercentage) : 0;
+    // Solo hay algo que reembolsar si el anticipo fue cobrado: una cita en pending_payment
+    // nunca llegó a la pasarela y pedirle un reembolso fallaría o devolvería dinero inexistente.
+    const advanceAmount =
+      appointment.clientInfo && appointment.paymentStatus === 'approved'
+        ? computeAdvanceFromAppointment(appointment, tenant.settings.advancePaymentPercentage)
+        : 0;
     const decision = applyCancellationPolicy({
       startTime: appointment.startTime,
       cancelledAt: new Date().toISOString(),
