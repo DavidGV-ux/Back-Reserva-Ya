@@ -22,7 +22,7 @@ Serverless Framework guarda un historial de despliegues vía CloudFormation.
 2. Volver a una versión anterior: `serverless rollback --timestamp <timestamp>`
 3. Verificar que la API responde correctamente después del rollback
 
-⚠️ El rollback revierte código y configuración, pero **no revierte datos**. Para recuperar datos perdidos, usar los backups (sección 3).
+El rollback revierte código y configuración, pero **no revierte datos**. Para recuperar datos perdidos, usar los backups (sección 3).
 
 ## 3. Backups y Restauración
 
