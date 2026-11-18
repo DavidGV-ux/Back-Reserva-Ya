@@ -40,6 +40,7 @@ describe('notifications & reminders integration (B-01, B-02, B-03)', () => {
         name: 'Laura Gómez',
         phone: '+573156667788',
         email: 'laura@ejemplo.com',
+        clientId: 'client-whatsapp',
         habeasDataConsent: true,
       },
       source: 'whatsapp',
