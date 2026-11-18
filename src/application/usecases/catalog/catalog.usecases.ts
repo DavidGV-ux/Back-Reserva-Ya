@@ -189,6 +189,13 @@ export class CatalogUseCases {
     if (patch.schedule) {
       patch.schedule = normalizeWeeklySchedule(patch.schedule);
     }
+    if (patch.serviceIds) {
+      if (!patch.serviceIds.length) throw new ValidationError('serviceIds must not be empty');
+      for (const sid of new Set(patch.serviceIds)) {
+        const svc = await this.repos.services.findById(input.tenantId, sid);
+        if (!svc) throw new NotFoundError('Service', sid);
+      }
+    }
     const updated: Professional = { ...current, ...patch };
     const saved = await this.repos.professionals.update(updated, input.expectedVersion, input.actor);
     await this.repos.audit.record({

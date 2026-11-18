@@ -310,9 +310,13 @@ describe('E2E WhatsApp -> Reserva -> Link de Pago -> Confirmación -> Recordator
     expect(pendingAppt!.status).toBe('pending_payment');
 
     // 3. Simular pago del anticipo vía webhook de pasarela -> Confirmación de cita y disparo de notificación
+    process.env.DEMO_WEBHOOK_SECRET ??= 'test-demo-webhook-secret';
     const payWebhookRes = await fetch(`${backBaseUrl}/api/webhooks/demo/payments/approve`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-demo-webhook-secret': process.env.DEMO_WEBHOOK_SECRET,
+      },
       body: JSON.stringify({
         reference: paymentReference,
         amount: advanceAmount,

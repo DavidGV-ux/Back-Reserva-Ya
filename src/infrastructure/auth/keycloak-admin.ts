@@ -134,24 +134,29 @@ export class KeycloakAdminGateway implements IdentityGateway {
     lastName?: string;
     temporaryPassword: string;
     persistentPassword?: boolean;
+    requiredActions?: string[];
+    enabled?: boolean;
   }): Promise<{ sub: string }> {
-    // `persistentPassword` se usa en el autorregistro web: la contraseña elegida
-    // es definitiva (`temporary: false`). Como aún no hay flujo de verificación
-    // de correo, el email se marca verificado para que el usuario pueda entrar
-    // de inmediato; conviene sustituirlo por verificación real en una fase 2.
+    // `persistentPassword` solo define si la contraseña es definitiva. El email
+    // NUNCA se marca verificado sin prueba: en autorregistro se encola VERIFY_EMAIL.
     const persistent = Boolean(input.persistentPassword);
+    const requiredActions = [...(input.requiredActions ?? [])];
+    if (persistent && !requiredActions.includes('VERIFY_EMAIL')) {
+      requiredActions.push('VERIFY_EMAIL');
+    }
     const res = await this.request('POST', `/admin/realms/${this.realm}/users`, {
       username: input.username,
       email: input.email,
       firstName: input.firstName,
       lastName: input.lastName,
-      enabled: true,
-      emailVerified: persistent,
+      enabled: input.enabled ?? true,
+      emailVerified: false,
+      requiredActions,
       credentials: [
         {
           type: 'password',
           value: input.temporaryPassword,
-          temporary: !persistent,
+          temporary: input.requiredActions?.includes('UPDATE_PASSWORD') ?? !persistent,
         },
       ],
     });
@@ -164,6 +169,24 @@ export class KeycloakAdminGateway implements IdentityGateway {
       throw new Error('Identity provider did not return a user location');
     }
     return { sub: decodeURIComponent(location.split('/').filter(Boolean).pop() ?? '') };
+  }
+
+  async setEnabled(sub: string, enabled: boolean): Promise<void> {
+    const path = await this.userPath(sub);
+    if (!path) throw new Error(`Identity provider user ${sub} not found`);
+    const res = await this.request('PUT', path, { enabled });
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`Identity provider user update failed (${res.status})`);
+    }
+  }
+
+  async deleteUser(sub: string): Promise<void> {
+    const path = await this.userPath(sub);
+    if (!path) return;
+    const res = await this.request('DELETE', path);
+    if (!res.ok && res.status !== 204 && res.status !== 404) {
+      throw new Error(`Identity provider user delete failed (${res.status})`);
+    }
   }
 
   async ensureRealmRole(sub: string, role: RealmRole): Promise<void> {
