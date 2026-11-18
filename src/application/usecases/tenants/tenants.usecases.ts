@@ -1,6 +1,14 @@
 import { ConflictError, DomainError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { Tenant } from '../../../domain/entities';
-import { AuditLogRepository, PlanRepository, PlatformUserRepository, TenantRepository, TenantUserRepository } from '../../../domain/ports/repositories';
+import {
+  AuditLogRepository,
+  PlanRepository,
+  PlatformUserRepository,
+  TenantAssetRepository,
+  TenantLogoAsset,
+  TenantRepository,
+  TenantUserRepository,
+} from '../../../domain/ports/repositories';
 import { hexId, uuid } from '../../../shared/id';
 import { ForbiddenError } from '../../../shared/errors';
 
@@ -17,6 +25,62 @@ export const DEFAULT_TENANT_SETTINGS = {
   preferredNotificationChannel: 'whatsapp' as const,
 };
 
+const BRAND_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const MAX_LOGO_BYTES = 256 * 1024;
+const LOGO_DATA_URL_RE = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)$/;
+
+function detectLogoType(data: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+  if (
+    data.length >= 8 &&
+    data[0] === 0x89 &&
+    data[1] === 0x50 &&
+    data[2] === 0x4e &&
+    data[3] === 0x47 &&
+    data[4] === 0x0d &&
+    data[5] === 0x0a &&
+    data[6] === 0x1a &&
+    data[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    data.length >= 12 &&
+    data.toString('ascii', 0, 4) === 'RIFF' &&
+    data.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+function parseLogoDataUrl(image: string): { data: Buffer; contentType: string } {
+  if (typeof image !== 'string') {
+    throw new ValidationError('logo image is required');
+  }
+  const match = LOGO_DATA_URL_RE.exec(image.trim());
+  if (!match) {
+    throw new ValidationError('logo must be a PNG, JPEG or WebP data URL');
+  }
+  const data = Buffer.from((match[2] ?? '').replace(/\s/g, ''), 'base64');
+  if (data.length === 0) {
+    throw new ValidationError('logo image is empty');
+  }
+  if (data.length > MAX_LOGO_BYTES) {
+    throw new ValidationError(`logo exceeds the ${Math.round(MAX_LOGO_BYTES / 1024)} KB limit`, {
+      maxBytes: MAX_LOGO_BYTES,
+      bytes: data.length,
+    });
+  }
+  const contentType = detectLogoType(data);
+  if (!contentType) {
+    throw new ValidationError('logo content is not a valid PNG, JPEG or WebP image');
+  }
+  return { data, contentType };
+}
+
 export class TenantsUseCases {
   constructor(
     private readonly repos: {
@@ -24,6 +88,7 @@ export class TenantsUseCases {
       plans: PlanRepository;
       tenantUsers: TenantUserRepository;
       platformUsers: PlatformUserRepository;
+      tenantAssets: TenantAssetRepository;
       audit: AuditLogRepository;
     },
   ) {}
@@ -45,6 +110,88 @@ export class TenantsUseCases {
     const tenant = await this.repos.tenants.findBySlug(slug);
     if (!tenant) throw new NotFoundError('Tenant', slug);
     return tenant;
+  }
+
+  private async getTenantForBranding(tenantId: string): Promise<Tenant> {
+    const tenant = await this.repos.tenants.findById(tenantId);
+    if (!tenant) throw new NotFoundError('Tenant', tenantId);
+    return tenant;
+  }
+
+  /** Datos de personalización del negocio (logo + color de marca). */
+  async getBranding(tenantId: string): Promise<Tenant> {
+    return this.getTenantForBranding(tenantId);
+  }
+
+  /**
+   * Actualiza el color de marca del tenant. Se usa OCC con la versión que
+   * envió el panel para no pisar cambios concurrentes del negocio.
+   */
+  async updateBranding(input: {
+    tenantId: string;
+    actor: string;
+    version: number;
+    brandColor: string | null;
+  }): Promise<Tenant> {
+    if (!Number.isInteger(input.version) || input.version < 1) {
+      throw new ValidationError('version is required');
+    }
+    if (input.brandColor !== null && !BRAND_COLOR_RE.test(input.brandColor)) {
+      throw new ValidationError('brandColor must be a #RRGGBB color');
+    }
+    const tenant = await this.getTenantForBranding(input.tenantId);
+    tenant.version = input.version;
+    tenant.brandColor = input.brandColor?.toLowerCase();
+    return this.repos.tenants.update(tenant, input.actor);
+  }
+
+  /**
+   * Guarda el logo ya comprimido por el cliente y publica una URL versionada
+   * (`?v=...`) para que el navegador pueda cachearla como inmutable.
+   */
+  async uploadLogo(input: {
+    tenantId: string;
+    actor: string;
+    version: number;
+    image: string;
+  }): Promise<Tenant> {
+    if (!Number.isInteger(input.version) || input.version < 1) {
+      throw new ValidationError('version is required');
+    }
+    const tenant = await this.getTenantForBranding(input.tenantId);
+    const { data, contentType } = parseLogoDataUrl(input.image);
+    const logoVersion = Date.now();
+    await this.repos.tenantAssets.saveLogo({
+      tenantId: tenant.tenantId,
+      data,
+      contentType,
+      version: logoVersion,
+    });
+    tenant.version = input.version;
+    tenant.logoUrl = `/public/tenants/${encodeURIComponent(tenant.slug)}/logo?v=${logoVersion}`;
+    return this.repos.tenants.update(tenant, input.actor);
+  }
+
+  /** Elimina el logo actual y deja de referenciarlo en el tenant. */
+  async removeLogo(input: { tenantId: string; actor: string; version: number }): Promise<Tenant> {
+    if (!Number.isInteger(input.version) || input.version < 1) {
+      throw new ValidationError('version is required');
+    }
+    const tenant = await this.getTenantForBranding(input.tenantId);
+    tenant.version = input.version;
+    tenant.logoUrl = undefined;
+    const updated = await this.repos.tenants.update(tenant, input.actor);
+    // El borrado del binario va después: si falla, solo queda un huérfano
+    // inofensivo; nunca dejamos la página apuntando a un logo inexistente.
+    await this.repos.tenantAssets.deleteLogo(tenant.tenantId);
+    return updated;
+  }
+
+  /** Logo público del tenant, servido con caché inmutable desde su URL versionada. */
+  async getPublicLogo(slug: string): Promise<TenantLogoAsset | null> {
+    const tenant = await this.repos.tenants.findBySlug(slug);
+    if (!tenant) return null;
+    return this.repos.tenantAssets.findLogo(tenant.tenantId);
   }
 
   async assertTenantMembership(input: {

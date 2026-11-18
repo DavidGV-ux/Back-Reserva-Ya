@@ -432,6 +432,9 @@ export class BookingUseCases {
     if (input.professionalId && appointment.professionalId !== input.professionalId) {
       throw new ForbiddenError('appointment does not belong to this professional');
     }
+    if (input.requestedBy === 'client' && appointment.clientInfo?.clientId !== input.actor) {
+      throw new ForbiddenError('appointment does not belong to the caller');
+    }
     if (['cancelled', 'completed', 'no_show', 'expired'].includes(appointment.status)) {
       throw new ConflictError('APPOINTMENT_TERMINAL', `appointment is already ${appointment.status}`);
     }
