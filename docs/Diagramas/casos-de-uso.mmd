@@ -1,0 +1,13 @@
+flowchart TD
+  subgraph Portal["Portal público y cliente"]
+    Guest["Invitado"] --> Booking["Consultar disponibilidad y reservar"]
+    Client["Cliente"] --> Booking
+    Client --> History["Consultar y gestionar sus citas"]
+  end
+  subgraph Panel["Operación del negocio"]
+    Owner["Dueño"] --> Catalog["Gestionar catálogo y profesionales"]
+    Owner --> Reports["Consultar reportes"]
+    Professional["Profesional"] --> Agenda["Gestionar su agenda"]
+    Owner --> Agenda
+  end
+  Admin["Admin de plataforma"] --> Tenants["Gestionar negocios"]
