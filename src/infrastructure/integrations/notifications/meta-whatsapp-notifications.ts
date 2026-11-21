@@ -92,6 +92,17 @@ export class MetaWhatsappNotificationGateway implements NotificationGateway {
             },
           };
 
+    // B-01 / F-05 / RNF-17: Fail-closed en producción si faltan credenciales de Meta para disparar fallback a email
+    if (
+      !this.fetchImpl &&
+      process.env.NODE_ENV === 'production' &&
+      (!this.phoneNumberId.trim() || !this.accessToken.trim())
+    ) {
+      throw new Error(
+        'Meta WhatsApp error: WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN are required in production',
+      );
+    }
+
     if (this.fetchImpl || (this.phoneNumberId && this.accessToken)) {
       const fn = this.fetchImpl ?? fetch;
       const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId || '000000'}/messages`;
@@ -110,8 +121,11 @@ export class MetaWhatsappNotificationGateway implements NotificationGateway {
       };
 
       if (!response.ok) {
+        const statusCode = body.error?.code
+          ? `${response.status}/${body.error.code}`
+          : String(response.status);
         throw new Error(
-          `Meta WhatsApp API error (${response.status}): ${body.error?.message ?? 'Unknown error'}`,
+          `Meta WhatsApp API error (${statusCode}): ${body.error?.message ?? 'Unknown error'}`,
         );
       }
 

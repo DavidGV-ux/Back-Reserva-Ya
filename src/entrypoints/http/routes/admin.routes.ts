@@ -29,7 +29,7 @@ export const createTenantSchema = z.object({
       bookingMode: z.enum(['exclusive', 'capacity']).optional(),
       capacityPerSlot: z.number().int().min(1).max(500).optional(),
       paymentTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
-      reminderHours: z.number().int().min(0).max(720).optional(),
+      reminderHours: z.number().int().min(1).max(72).optional(),
     })
     .optional(),
 });

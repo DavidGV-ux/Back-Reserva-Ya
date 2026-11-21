@@ -106,26 +106,30 @@ export class TenantMongoRepository implements TenantRepository {
     return docs.map((d) => tenantToDomain(d as unknown as TenantDoc));
   }
 
+  private serializeSettings(settings: Tenant['settings']): Record<string, unknown> {
+    return {
+      default_language: settings.defaultLanguage,
+      active_languages: settings.activeLanguages,
+      slot_granularity_minutes: bsonInt(settings.slotGranularityMinutes),
+      cancellation_tolerance_hours: bsonInt(settings.cancellationToleranceHours),
+      payment_timeout_minutes: bsonInt(settings.paymentTimeoutMinutes),
+      advance_payment_percentage: bsonInt(settings.advancePaymentPercentage),
+      preferred_notification_channel: settings.preferredNotificationChannel,
+      reminder_hours: bsonInt(settings.reminderHours),
+      ...(settings.whatsappPhoneNumberId
+        ? { whatsapp_phone_number_id: settings.whatsappPhoneNumberId }
+        : {}),
+      ...(settings.bookingMode ? { booking_mode: settings.bookingMode } : {}),
+      ...(settings.capacityPerSlot
+        ? { capacity_per_slot: bsonInt(settings.capacityPerSlot) }
+        : {}),
+    };
+  }
+
   async create(tenant: Tenant, actor: string): Promise<Tenant> {
     const plan = await this.collection.db.collection('plans').findOne({ code: tenant.planId }, { session: this.session });
     if (!plan) throw new NotFoundError('Plan', tenant.planId);
-    const settings = {
-      default_language: tenant.settings.defaultLanguage,
-      active_languages: tenant.settings.activeLanguages,
-      slot_granularity_minutes: bsonInt(tenant.settings.slotGranularityMinutes),
-      cancellation_tolerance_hours: bsonInt(tenant.settings.cancellationToleranceHours),
-      payment_timeout_minutes: bsonInt(tenant.settings.paymentTimeoutMinutes),
-      advance_payment_percentage: bsonInt(tenant.settings.advancePaymentPercentage),
-      preferred_notification_channel: tenant.settings.preferredNotificationChannel,
-      reminder_hours: bsonInt(tenant.settings.reminderHours),
-      ...(tenant.settings.whatsappPhoneNumberId
-        ? { whatsapp_phone_number_id: tenant.settings.whatsappPhoneNumberId }
-        : {}),
-      ...(tenant.settings.bookingMode ? { booking_mode: tenant.settings.bookingMode } : {}),
-      ...(tenant.settings.capacityPerSlot
-        ? { capacity_per_slot: bsonInt(tenant.settings.capacityPerSlot) }
-        : {}),
-    };
+    const settings = this.serializeSettings(tenant.settings);
     const doc = auditCreate(
       {
         tenant_id: tenant.tenantId,
@@ -179,6 +183,7 @@ export class TenantMongoRepository implements TenantRepository {
         logo_url: tenant.logoUrl ?? null,
         cover_url: tenant.coverUrl ?? null,
         brand_color: tenant.brandColor ?? null,
+        settings: this.serializeSettings(tenant.settings),
         booking_status: tenant.bookingStatus,
       },
       actor,

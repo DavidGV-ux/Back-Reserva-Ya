@@ -80,6 +80,22 @@ const brandingLogoSchema = z.object({
   image: z.string().min(1).max(600_000),
 });
 
+export const ownerSettingsSchema = z
+  .object({
+    version: z.number().int().min(1).optional(),
+    reminderHours: z.number().int().min(1).max(72).optional(),
+    preferredNotificationChannel: z.enum(['whatsapp', 'email', 'sms']).optional(),
+    whatsappPhoneNumberId: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict()
+  .refine(
+    (d) =>
+      d.reminderHours !== undefined ||
+      d.preferredNotificationChannel !== undefined ||
+      d.whatsappPhoneNumberId !== undefined,
+    { message: 'at least one setting field must be provided' },
+  );
+
 export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): Router {
   const router = Router();
 
@@ -213,6 +229,44 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
         tenantId: param(req, 'tenantId'),
         actor: req.principal!.sub,
         version,
+      });
+      res.json(tenant);
+    }),
+  );
+
+  // B-03 (RF-2.8): Consultar y actualizar configuración de notificaciones/recordatorios del negocio
+  router.get(
+    '/owner/:tenantId/settings',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const tenant = await services.tenants.getBranding(param(req, 'tenantId'));
+      res.json({
+        tenantId: tenant.tenantId,
+        version: tenant.version,
+        settings: tenant.settings,
+      });
+    }),
+  );
+
+  router.patch(
+    '/owner/:tenantId/settings',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const parsed = ownerSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError('invalid settings payload', { issues: parsed.error.issues });
+      }
+      const tenant = await services.tenants.updateSettings({
+        tenantId: param(req, 'tenantId'),
+        actor: req.principal!.sub,
+        version: parsed.data.version,
+        reminderHours: parsed.data.reminderHours,
+        preferredNotificationChannel: parsed.data.preferredNotificationChannel,
+        whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId,
       });
       res.json(tenant);
     }),

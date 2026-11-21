@@ -111,4 +111,34 @@ export class WhatsappUseCases {
 
     return { role: null, phone: normalized };
   }
+
+  /**
+   * RF-4.4: Resuelve el tenant activo a partir del `phone_number_id` de Meta
+   * almacenado en `tenant.settings.whatsappPhoneNumberId`. Devuelve `null` si
+   * ningún negocio activo está asociado a ese identificador.
+   */
+  async resolveTenantByPhoneNumberId(phoneNumberId: string): Promise<{
+    tenantId: string;
+    slug: string;
+    name: string;
+    whatsappPhoneNumberId: string;
+  } | null> {
+    const cleaned = phoneNumberId.trim();
+    if (!cleaned) {
+      throw new ValidationError('phoneNumberId is required');
+    }
+    const tenants = (await this.repos.tenants.list()).filter(
+      (t) => t.bookingStatus === 'active' && !t.deletedAt,
+    );
+    const matched = tenants.find((t) => t.settings.whatsappPhoneNumberId === cleaned);
+    if (!matched) {
+      return null;
+    }
+    return {
+      tenantId: matched.tenantId,
+      slug: matched.slug,
+      name: matched.name,
+      whatsappPhoneNumberId: cleaned,
+    };
+  }
 }

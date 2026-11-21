@@ -66,6 +66,11 @@ export class ResendNotificationGateway implements NotificationGateway {
       input.html ??
       `<div style="font-family: Arial, sans-serif; padding: 16px;"><p>${input.message.replace(/\n/g, '<br/>')}</p></div>`;
 
+    // B-01 / F-05: Fail-closed en producción si falta RESEND_API_KEY (evita simular éxito silencioso)
+    if (!this.fetchImpl && process.env.NODE_ENV === 'production' && !this.apiKey.trim()) {
+      throw new Error('Resend API error: RESEND_API_KEY is required in production');
+    }
+
     // Si se configuró una API key real o un fetch inyectado, invocar endpoint de Resend
     if (this.fetchImpl || (this.apiKey && !this.apiKey.startsWith('re_sandbox_local'))) {
       const fn = this.fetchImpl ?? fetch;

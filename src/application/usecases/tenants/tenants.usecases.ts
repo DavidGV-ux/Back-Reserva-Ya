@@ -146,6 +146,65 @@ export class TenantsUseCases {
   }
 
   /**
+   * B-03 (RF-2.8): Actualiza la configuración operativa del negocio
+   * (horas de anticipación del recordatorio entre 1 y 72 h, canal preferido y
+   * número de WhatsApp Business asociado).
+   */
+  async updateSettings(input: {
+    tenantId: string;
+    actor: string;
+    version?: number;
+    reminderHours?: number;
+    preferredNotificationChannel?: Tenant['settings']['preferredNotificationChannel'];
+    whatsappPhoneNumberId?: string;
+  }): Promise<Tenant> {
+    if (input.version !== undefined && (!Number.isInteger(input.version) || input.version < 1)) {
+      throw new ValidationError('version must be a positive integer');
+    }
+    if (
+      input.reminderHours !== undefined &&
+      (!Number.isInteger(input.reminderHours) || input.reminderHours < 1 || input.reminderHours > 72)
+    ) {
+      throw new ValidationError('reminderHours must be an integer between 1 and 72', {
+        reminderHours: input.reminderHours,
+      });
+    }
+    if (
+      input.preferredNotificationChannel !== undefined &&
+      !['whatsapp', 'email', 'sms'].includes(input.preferredNotificationChannel)
+    ) {
+      throw new ValidationError('preferredNotificationChannel must be whatsapp, email or sms');
+    }
+
+    const tenant = await this.getTenantForBranding(input.tenantId);
+    const before = { ...tenant.settings };
+    tenant.version = input.version ?? tenant.version;
+    tenant.settings = {
+      ...tenant.settings,
+      ...(input.reminderHours !== undefined ? { reminderHours: input.reminderHours } : {}),
+      ...(input.preferredNotificationChannel !== undefined
+        ? { preferredNotificationChannel: input.preferredNotificationChannel }
+        : {}),
+      ...(input.whatsappPhoneNumberId !== undefined
+        ? { whatsappPhoneNumberId: input.whatsappPhoneNumberId }
+        : {}),
+    };
+
+    const updated = await this.repos.tenants.update(tenant, input.actor);
+    await this.repos.audit.record({
+      eventId: uuid(),
+      tenantId: tenant.tenantId,
+      collection: 'tenants',
+      documentId: tenant.id,
+      operation: 'update',
+      actor: input.actor,
+      before,
+      after: updated.settings,
+    });
+    return updated;
+  }
+
+  /**
    * Guarda el logo ya comprimido por el cliente y publica una URL versionada
    * (`?v=...`) para que el navegador pueda cachearla como inmutable.
    */

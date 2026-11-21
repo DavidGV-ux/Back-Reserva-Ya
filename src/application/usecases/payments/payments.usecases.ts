@@ -297,6 +297,7 @@ export class PaymentsUseCases {
       }
 
       try {
+        let reconciledEvent: PaymentEventResult | undefined;
         await this.uow.withTransaction(async (tx) => {
           const fresh = await tx.appointments.findById(appt.tenantId, appt.id);
           if (!fresh || fresh.status !== 'pending_payment') return 'skipped' as const;
@@ -349,7 +350,7 @@ export class PaymentsUseCases {
                 ? await this.gateway.fetchChargeStatus({ internalReference: fresh.paymentReference })
                 : null;
               if (remote && remote.status !== 'pending') {
-                await this.applyChargeEvent(
+                reconciledEvent = await this.applyChargeEvent(
                   tx,
                   payment,
                   fresh,
@@ -397,6 +398,23 @@ export class PaymentsUseCases {
           expired += 1;
           return 'rejected' as const;
         });
+
+        // B-02: Emitir confirmación cuando el cron reconcilia un pago pendiente que resultó aprobado
+        if (
+          reconciledEvent?.handled &&
+          reconciledEvent.appointment?.status === 'confirmed' &&
+          reconciledEvent.transaction?.status === 'approved' &&
+          this.notifications
+        ) {
+          await this.notifications
+            .notifyAppointmentEvent({
+              appointment: reconciledEvent.appointment,
+              tenant,
+              type: 'confirmation',
+              paidAmount: reconciledEvent.transaction.amount,
+            })
+            .catch(() => undefined);
+        }
       } catch {
         failed += 1;
       }

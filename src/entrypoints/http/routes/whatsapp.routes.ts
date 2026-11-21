@@ -36,6 +36,23 @@ export function whatsappRouter(services: AppServices, verifier: KeycloakVerifier
     }),
   );
 
+  // RF-4.4: Resolver tenant activo por phone_number_id de Meta (404 si no existe)
+  router.get(
+    '/tenant',
+    asyncRoute(async (req, res) => {
+      guard(req.headers);
+      if (typeof req.query.phoneNumberId !== 'string' || !req.query.phoneNumberId.trim()) {
+        throw new ValidationError('phoneNumberId query param is required');
+      }
+      const tenant = await services.whatsapp.resolveTenantByPhoneNumberId(req.query.phoneNumberId);
+      if (!tenant) {
+        res.status(404).json({ error: { code: 'TENANT_NOT_FOUND', message: 'No active tenant associated with this WhatsApp phone_number_id' } });
+        return;
+      }
+      res.json(tenant);
+    }),
+  );
+
   // Verificación de código por WhatsApp (llamada desde el webhook del bot).
   // Valida el código contra pending_registrations y, si es válido, crea el
   // usuario en Keycloak + user_profiles (registro completado).
