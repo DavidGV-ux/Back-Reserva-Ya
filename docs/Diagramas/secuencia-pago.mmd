@@ -1,0 +1,20 @@
+sequenceDiagram
+  actor C as Cliente
+  participant W as Portal
+  participant B as Backend
+  participant P as Pasarela sandbox
+  participant M as MongoDB
+  C->>W: Confirmar datos y consentimiento
+  W->>B: Crear reserva
+  B->>M: Guardar cita pendiente y bloquear horario
+  B->>P: Iniciar anticipo
+  B-->>W: Entregar enlace de pago
+  C->>P: Completar pago de prueba
+  P->>B: Informar resultado
+  alt Pago aprobado
+    B->>M: Confirmar cita y registrar efecto contable
+  else Pago sin aprobación
+    B->>B: Conservar la cita sin confirmar
+  end
+  W->>B: Consultar estado de la cita
+  B-->>W: Devolver estado registrado

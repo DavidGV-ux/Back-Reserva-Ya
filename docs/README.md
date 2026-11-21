@@ -1,54 +1,24 @@
-# ReservaYa — Documentación I5
+# ReservaYa · Entrega y cierre de la Fase 1
 
-Documentación y trazabilidad de Cesar C. para el cierre del proyecto.
+ReservaYa es una plataforma de reservas de servicios. La Fase 1 comprende la consulta de disponibilidad, la gestión de citas por rol, el pago de anticipos, las notificaciones y el canal de WhatsApp. El alcance de la versión entregada se establece en el documento de requisitos y en las actas de modificación.
 
-## Alcance
+## Documentación de entrega
 
-- E-01: matriz de trazabilidad RF/RN/RNF.
-- E-02: plan y evidencia de pruebas.
-- E-03: SRS final y actas de modificación.
-- E-04/A-08: ADRs y arquitectura.
-- E-05: diagramas finales.
-- C-09/E-06: manual de usuario es/en.
-- D-08: runbook.
-- E-07: acta de cierre, slides y demo.
-- E-08: README e índice documental.
-- D-09: versionado de `Docs/`.
+| Documento | Contenido |
+|---|---|
+| [Especificación de requisitos](SRS/) | SRS v2 en Markdown y PDF. Define el alcance, los requisitos funcionales y no funcionales, las reglas de negocio y los criterios de aceptación. |
+| [Actas de modificación](Actas/) | Cambios aprobados durante el proyecto, requisitos afectados y decisiones que fijan el alcance final. |
+| [Matriz de trazabilidad](Trazabilidad/) | Relación entre cada requisito o regla de negocio, el componente que lo implementa, el caso de prueba y la evidencia disponible. |
+| [Plan y resultados de pruebas](Pruebas/) | Casos de prueba y resultados por caso, con el ambiente, la versión evaluada y la evidencia de ejecución. |
+| [Arquitectura del sistema](Arquitectura/) | Estructura del software, responsabilidades de sus componentes e integraciones con servicios externos. |
+| [Decisiones de arquitectura](ADR/) | Decisiones técnicas, sus motivos y sus efectos sobre el sistema. Incluye la referencia al [ADR de respaldos y monitoreo](ADR-13-backups-monitoreo.md). |
+| [Diagramas del sistema](Diagramas/) | Despliegue en AWS, modelo de datos de MongoDB, casos de uso y secuencias de pago, expiración y notificación. |
+| [Manual de usuario](Manual/) | Guías en español e inglés para realizar los recorridos disponibles según el rol. |
+| [Guía de operaciones](RUNBOOK-INFRA.md) | Procedimientos de despliegue, reversión, respaldos y monitoreo. |
+| [Acta y demostración de cierre](Cierre/) | Acta de entrega, presentación y grabación de los recorridos web y de WhatsApp. |
 
-## Estructura
+## Verificación y aceptación
 
-| Carpeta | Contenido | Estado |
-|---|---|---|
-| `SRS/` | SRS final, línea base y control de cambios | Pendiente |
-| `Actas/` | Actas AM-nn y acta aprobada de Identidad y Registro | No verificado |
-| `ADR/` | ADRs existentes y ADR-12 a ADR-17 | Parcial |
-| `Arquitectura/` | Arquitectura hexagonal | No verificado |
-| `Diagramas/` | Diagramas Mermaid finales | Pendiente |
-| `Trazabilidad/` | Matriz RF/RN/RNF | Pendiente |
-| `Pruebas/` | Casos, plan, resultados y evidencia | Pendiente |
-| `Manual/` | Manual en español e inglés | Pendiente |
-| `Operaciones/` | Runbook | Pendiente |
-| `Cierre/` | Acta, slides, deck, demo y licencias | Pendiente |
+Para comprobar un requisito, localiza su identificador en el SRS, busca su fila en la matriz de trazabilidad y consulta el resultado y la evidencia del caso asociado. El registro de pruebas indica en qué versión y ambiente se obtuvo el resultado.
 
-## Fuentes
-
-- SRS: fuente de requisitos e IDs.
-- Backlog del 07/10/2026: fuente de estado, sujeto a verificación.
-- Repositorios `Back-Reserva-Ya`, `Front-ReservaYa` y `Modelo-de-datos-Reserva-Ya`.
-- Paquete de trabajo I5.
-
-No se almacenan contraseñas, tokens, claves, cadenas de conexión ni valores de secretos.
-
-## Convenciones
-
-- Actas: `AM-nn_tema.md`.
-- ADRs: `ADR-nn_titulo.md`.
-- Pruebas: `T-xx.md`.
-- Evidencia: `T-xx_nn_descripcion.ext`.
-- Diagramas: `nombre_descriptivo.mmd`.
-
-## Estado D-09
-
-- Estructura inicial creada: 25/10/2026.
-- Commit y push: [VERIFICAR EN REPO].
-
+El acta de cierre reúne la versión entregada, la fecha y el ambiente de validación, los resultados de la revisión, los pendientes acordados y la decisión de aceptación.

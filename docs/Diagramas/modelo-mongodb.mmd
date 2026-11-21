@@ -1,0 +1,15 @@
+erDiagram
+  tenants ||--o{ services : ofrece
+  tenants ||--o{ professionals : administra
+  tenants ||--o{ tenant_users : vincula
+  tenants ||--o{ appointments : agrupa
+  services ||--o{ appointments : se_reserva_en
+  professionals ||--o{ appointments : atiende
+  professionals ||--o{ availability_blocks : tiene
+  professionals ||--o{ time_slots : agenda
+  appointments o|--o{ time_slots : ocupa
+  availability_blocks o|--o{ time_slots : bloquea
+  appointments ||--o{ payment_transactions : registra
+  appointments ||--o{ notifications : origina
+  appointments o|--o{ ledger : referencia
+  appointments o|--o{ whatsapp_conversations : vincula
