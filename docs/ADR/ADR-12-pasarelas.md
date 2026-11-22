@@ -17,3 +17,9 @@ El backend vincula la respuesta de la pasarela con la referencia interna del pag
 Una integración directa en el caso de uso acoplaría la lógica de la reserva y del libro contable al proveedor. El puerto permite incorporar adaptadores y repetir pruebas controladas. Los adaptadores externos requieren validación en el ambiente donde se usan.
 
 La CI del 18 de noviembre de 2026 pasó ocho pruebas de integración de Wompi y PayU. En el entorno de entrega queda pendiente registrar proveedor y modo, referencia de prueba, transición de la cita y asientos resultantes. Registrar la regla de reembolso acordada en AM-01 con el resultado de sandbox. [Corrida de CI](https://github.com/DavidGV-ux/Back-Reserva-Ya/actions/runs/44246667139) · [AM-01](../Actas/AM-01_consolidacion-cierre.md)
+
+## Decisión de cierre (22 de noviembre de 2026)
+
+- **PayU se conserva** como alternativa conectable, documentada y probada: `PayuPaymentGateway` sigue en el build y `test/unit/payu-payment.test.ts` cubre firma, normalización y reembolsos. No se elimina del build. [RES-33](https://linear.app/reservaya/issue/RES-33)
+- **Demo de Fase 1 con Wompi en sandbox** (`WOMPI_ENVIRONMENT=test`), según RF-5.1 y AM-01. Cambiar a PayU es solo `PAYMENT_PROVIDER=payu`, sin tocar casos de uso.
+- **Reglas de sandbox**: firma del webhook obligatoria, correspondencia por referencia interna y deduplicación de eventos repetidos (un solo efecto en ledger). El cargo real en sandbox y su evidencia se registran en [RES-28](https://linear.app/reservaya/issue/RES-28); esta revisión no envió cargos ni webhooks firmados al ambiente de entrega.
