@@ -73,6 +73,7 @@ const COLLECTIONS = [
   'audit_logs',
   'platform_users',
   'tenant_users',
+  'tenant_assets',
   'payout_accounts',
   'payouts',
 ] as const;
@@ -88,6 +89,14 @@ export async function ensureExtraIndexes(db: import('mongodb').Db): Promise<void
   const profiles = db.collection('user_profiles');
   await profiles.createIndex({ keycloak_user_id: 1 }, { unique: true, name: 'uq_user_profiles_keycloak' });
   await profiles.createIndex({ phone_digits: 1 }, { unique: true, name: 'uq_user_profiles_phone' });
+  // Anti-overbooking: una franja (tenant/profesional/inicio) solo puede estar
+  // ocupada una vez. La inserción atómica + captura de duplicate key (11000)
+  // convierte el conflicto en 409 AVAILABILITY_CONFLICT (EC01, CA03, H-A07).
+  const timeSlots = db.collection('time_slots');
+  await timeSlots.createIndex(
+    { tenant_id: 1, professional_id: 1, slot_start: 1 },
+    { unique: true, name: 'uq_time_slots_professional_start' },
+  );
 }
 
 export { COLLECTIONS };

@@ -7,7 +7,7 @@ import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
 import { z } from 'zod';
 import { TENANT_CATEGORIES } from '../../../domain/entities';
 
-const createTenantSchema = z.object({
+export const createTenantSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'kebab-case required'),
   tenantId: z.string().min(3),
   name: z.string().min(1),
@@ -23,11 +23,13 @@ const createTenantSchema = z.object({
   description: z.string().optional(),
   settings: z
     .object({
-      cancellationToleranceHours: z.number().optional(),
-      upfrontPercent: z.number().optional(),
-      slotGranularityMinutes: z.number().optional(),
+      cancellationToleranceHours: z.number().int().min(0).max(720).optional(),
+      upfrontPercent: z.number().int().min(0).max(100).optional(),
+      slotGranularityMinutes: z.number().int().min(1).max(1440).optional(),
       bookingMode: z.enum(['exclusive', 'capacity']).optional(),
       capacityPerSlot: z.number().int().min(1).max(500).optional(),
+      paymentTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
+      reminderHours: z.number().int().min(0).max(720).optional(),
     })
     .optional(),
 });
@@ -88,6 +90,8 @@ export function adminRouter(services: AppServices, verifier: KeycloakVerifier): 
             slotGranularityMinutes: body.settings?.slotGranularityMinutes,
             bookingMode: body.settings?.bookingMode,
             capacityPerSlot: body.settings?.capacityPerSlot,
+            paymentTimeoutMinutes: body.settings?.paymentTimeoutMinutes,
+            reminderHours: body.settings?.reminderHours,
           }
           : undefined,
       });

@@ -11,7 +11,7 @@ export class DomainError extends Error {
 
 export class NotFoundError extends DomainError {
   constructor(entity: string, id: string) {
-    super('NOT_FOUND', `${entity} not found: ${id}`, { entity, id });
+    super('NOT_FOUND', `${entity} not found`, { entity, id });
   }
 }
 

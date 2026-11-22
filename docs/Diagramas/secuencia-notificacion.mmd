@@ -1,0 +1,24 @@
+sequenceDiagram
+  participant B as Backend
+  participant N as Servicio de avisos
+  participant WA as WhatsApp
+  participant A as Correo Resend
+  actor C as Cliente
+  B->>N: Procesar confirmación, cancelación o recordatorio
+  alt WhatsApp es el canal configurado
+    N->>WA: Solicitar envío
+    WA-->>N: Informar resultado del intento
+    alt Solicitud aceptada
+      WA-->>C: Tramitar aviso
+    else Fallo con respaldo por correo habilitado
+      N->>A: Solicitar envío alternativo
+      A-->>N: Informar resultado del intento
+    end
+  else Resend es el canal configurado
+    N->>A: Solicitar envío por correo
+    A-->>N: Informar resultado del intento
+  end
+  opt Correo aceptado para envío
+    A-->>C: Tramitar aviso
+  end
+  N->>N: Registrar intento y resultado

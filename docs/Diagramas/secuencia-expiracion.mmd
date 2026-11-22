@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant S as Programador
+  participant B as Backend
+  participant M as MongoDB
+  participant W as Portal
+  S->>B: Ejecutar ronda de expiración
+  B->>M: Buscar citas pendientes vencidas
+  alt La cita sigue pendiente
+    B->>M: Marcar expirada y liberar franja
+    W->>B: Consultar disponibilidad
+    B-->>W: Mostrar franja libre
+  else La cita ya cambió de estado
+    B->>M: Conservar el estado registrado
+  end

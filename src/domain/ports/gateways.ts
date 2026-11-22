@@ -107,7 +107,11 @@ export interface IdentityGateway {
     lastName?: string;
     temporaryPassword: string;
     persistentPassword?: boolean;
+    requiredActions?: string[];
+    enabled?: boolean;
   }): Promise<{ sub: string }>;
+  setEnabled(sub: string, enabled: boolean): Promise<void>;
+  deleteUser(sub: string): Promise<void>;
   findByEmail(email: string): Promise<IdentityUser | null>;
   findBySub(sub: string): Promise<IdentityUser | null>;
 }

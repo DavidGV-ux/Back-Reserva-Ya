@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Router, Request } from 'express';
 import { AppServices } from '../../../application/container';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
@@ -15,6 +16,20 @@ function toEnvelope(req: RawBodyRequest) {
     headers: req.headers as Record<string, unknown>,
     body: req.body,
   };
+}
+
+function demoSecretFrom(req: Request): string | undefined {
+  const header = req.headers['x-demo-webhook-secret'];
+  if (typeof header === 'string') return header;
+  const auth = req.headers.authorization;
+  return typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7) : undefined;
+}
+
+function secretMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export function webhookRouter(services: AppServices): Router {
@@ -35,6 +50,10 @@ export function webhookRouter(services: AppServices): Router {
   router.post(
     '/demo/payments/:action',
     asyncRoute(async (req, res) => {
+      const configuredSecret = process.env.DEMO_WEBHOOK_SECRET;
+      if (!configuredSecret || !secretMatches(demoSecretFrom(req), configuredSecret)) {
+        throw new ForbiddenError('invalid demo webhook secret');
+      }
       if (services.payments.provider !== 'mock') {
         throw new ForbiddenError('demo payment webhook is only available with PAYMENT_PROVIDER=mock');
       }
