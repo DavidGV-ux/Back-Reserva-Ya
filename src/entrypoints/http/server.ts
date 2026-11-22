@@ -52,6 +52,9 @@ const authLimiter = rateLimit({
 export async function buildApp(boot: BootContext) {
   const app = express();
 
+  // API Gateway adds X-Forwarded-For; trust only that single hop so rate limiting keys on the client IP.
+  app.set('trust proxy', 1);
+
   // Security headers (helmet)
   app.use(helmet({
     contentSecurityPolicy: {
