@@ -17,6 +17,7 @@ export const env = {
   oidcAdminBaseUrl: required('OIDC_ADMIN_BASE_URL', 'http://localhost:8080'),
   oidcAdminClientId: required('OIDC_ADMIN_CLIENT_ID', 'reserwaya-back'),
   oidcAdminClientSecret: required('OIDC_ADMIN_CLIENT_SECRET', ''),
+  // shortcut: PAYMENT_PROVIDER defaults to 'mock' for the local demo; deployments must set it explicitly to a real provider.
   paymentProvider: required('PAYMENT_PROVIDER', 'mock'),
   whatsappProvider: required(
     'WHATSAPP_PROVIDER',

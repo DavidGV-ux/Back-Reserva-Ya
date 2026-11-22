@@ -1,20 +1,20 @@
 import { Router } from 'express';
 import { AppServices } from '../../../application/container';
-import { ValidationError } from '../../../shared/errors';
+import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
-import { optionalAuth } from '../middleware/auth';
+import { optionalAuth, requireAuth, requireTenantHeader, requireTenantMembership } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
 import { publishAppointmentCreated } from '../whatsapp-events';
 import { z } from 'zod';
 import { param } from './params';
 import { resolveBookingPolicy } from '../../../domain/rules/booking-capacity';
+import { Appointment } from '../../../domain/entities';
 
 const createAppointmentSchema = z.object({
   serviceId: z.string().min(1),
   professionalId: z.string().min(1),
   startTime: z.string().min(1),
   clientInfo: z.object({
-    clientId: z.string().optional(),
     name: z.string().min(1),
     phone: z.string().optional(),
     email: z.string().optional(),
@@ -42,6 +42,27 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
     asyncRoute(async (_req, res) => {
       const directory = await services.onboarding.publicDirectory();
       res.json(directory);
+    }),
+  );
+
+  router.get(
+    '/tenants/:slug/logo',
+    asyncRoute(async (req, res) => {
+      const slug = param(req, 'slug');
+      const logo = await services.tenants.getPublicLogo(slug);
+      if (!logo) throw new NotFoundError('TenantLogo', slug);
+      const etag = `"tenant-logo-${logo.tenantId}-${logo.version}"`;
+      res.set({
+        'Content-Type': logo.contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        ETag: etag,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+      res.end(Buffer.from(logo.data));
     }),
   );
 
@@ -117,7 +138,7 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         throw new ValidationError('invalid booking payload', { issues: parsed.error.issues });
       }
       const body = parsed.data;
-      const clientId = req.principal?.sub ?? body.clientInfo.clientId;
+      const clientId = req.principal?.sub;
       const result = await services.booking.createAppointment({
         tenantId: param(req, 'tenantId'),
         serviceId: body.serviceId,
@@ -163,15 +184,12 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
 
   router.get(
     '/:tenantId/appointments/history',
-    optional,
+    requireAuth(verifier),
     asyncRoute(async (req, res) => {
       const tenantId = param(req, 'tenantId');
       const appointments = await services.history.historyByClient({
         tenantId,
-        clientId: req.principal?.sub ?? (typeof req.query.clientId === 'string' ? req.query.clientId : undefined),
-        phone: typeof req.query.phone === 'string' ? req.query.phone : undefined,
-        email: typeof req.query.email === 'string' ? req.query.email : undefined,
-        documentId: typeof req.query.documentId === 'string' ? req.query.documentId : undefined,
+        clientId: req.principal!.sub,
       });
       res.json(appointments);
     }),
@@ -184,24 +202,15 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         param(req, 'tenantId'),
         param(req, 'appointmentId'),
       );
-      if (appointment.status === 'pending_payment' && appointment.paymentStatus === 'pending') {
-        const reconciled = await services.payments.reconcilePayment({
-          tenantId: param(req, 'tenantId'),
-          appointmentId: param(req, 'appointmentId'),
-          actor: 'web-anonymous',
-        });
-        if (reconciled.appointment) {
-          res.json(reconciled.appointment);
-          return;
-        }
-      }
-      res.json(appointment);
+      res.json(publicAppointmentDto(appointment));
     }),
   );
 
   router.post(
     '/:tenantId/appointments/:appointmentId/cancel',
-    optional,
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['client']),
     asyncRoute(async (req, res) => {
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
       const appointment = await services.booking.cancelAppointment({
@@ -209,13 +218,33 @@ export function publicRouter(services: AppServices, verifier: KeycloakVerifier):
         appointmentId: param(req, 'appointmentId'),
         requestedBy: 'client',
         reason,
-        actor: req.principal?.sub ?? 'web-anonymous',
+        actor: req.principal!.sub,
       });
       res.json(appointment);
     }),
   );
 
   return router;
+}
+
+/** Whitelist pública: la entidad completa incluye clientInfo (PII) y nunca debe salir por esta ruta. */
+function publicAppointmentDto(appointment: Appointment) {
+  return {
+    id: appointment.id,
+    tenantId: appointment.tenantId,
+    serviceId: appointment.serviceId,
+    professionalId: appointment.professionalId,
+    serviceName: appointment.serviceSnapshot.name,
+    serviceSnapshot: appointment.serviceSnapshot,
+    source: appointment.source,
+    createdAt: appointment.createdAt,
+    startTime: appointment.startTime,
+    endTime: appointment.endTime,
+    status: appointment.status,
+    paymentStatus: appointment.paymentStatus,
+    needsReassignment: appointment.needsReassignment,
+    version: appointment.version,
+  };
 }
 
 function csvList(value: unknown): string[] {

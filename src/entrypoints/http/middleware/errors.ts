@@ -10,6 +10,15 @@ export function asyncRoute(
 }
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+  // Body-parser / express.json() parse errors: respond 400 generic, no leak.
+  const isJsonParseError =
+    err instanceof SyntaxError &&
+    (err as { status?: number; type?: string }).status === 400 &&
+    (err as { type?: string }).type === 'entity.parse.failed';
+  if (isJsonParseError) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'invalid JSON body' } });
+    return;
+  }
   if (err instanceof DomainError) {
     const status = statusFor(err.code);
     res.status(status).json({
@@ -21,13 +30,12 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     });
     return;
   }
-  const message = err instanceof Error ? err.message : 'Internal Server Error';
   // eslint-disable-next-line no-console
   console.error(
     `[http] ${err instanceof Error ? (err.stack || String(err)).slice(0, 900) : String(err)}`,
     serializeErrDetails(err),
   );
-  res.status(500).json({ error: { code: 'INTERNAL', message } });
+  res.status(500).json({ error: { code: 'INTERNAL', message: 'Internal Server Error' } });
 }
 
 function serializeErrDetails(err: unknown): string {
@@ -71,11 +79,13 @@ function statusFor(code: string): number {
       return 409;
     case 'VALIDATION_ERROR':
       return 422;
+    case 'CODE_RATE_LIMITED':
+      return 429;
     default:
       return 400;
   }
 }
 
-export function notFoundHandler(req: Request, res: Response): void {
-  res.status(404).json({ error: { code: 'NOT_FOUND', message: `Route ${req.method} ${req.path} not found` } });
+export function notFoundHandler(_req: Request, res: Response): void {
+  res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
 }

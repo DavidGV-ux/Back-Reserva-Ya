@@ -50,7 +50,7 @@ export function buildSlots(params: {
   now: number;
 }): SlotView[] {
   const { shiftIntervals, granularityMinutes, occupied, blocked, now } = params;
-  const step = granularityMinutes * 60_000;
+  const step = Math.max(1, granularityMinutes) * 60_000;
   const slots: SlotView[] = [];
 
   for (const shift of shiftIntervals) {
@@ -87,7 +87,7 @@ export function fitForDuration(params: {
   now: number;
 }): ShiftInterval[] {
   const { shiftIntervals, granularityMinutes, occupied, blocked, durationMinutes, now } = params;
-  const step = granularityMinutes * 60_000;
+  const step = Math.max(1, granularityMinutes) * 60_000;
   const duration = durationMinutes * 60_000;
   const starts: ShiftInterval[] = [];
 
@@ -109,7 +109,7 @@ export function reasonForStart(
   occupied: OccupiedRange[],
   blocked: OccupiedRange[],
 ): SlotReason | undefined {
-  const end = start + granularityMinutes * 60_000;
+  const end = start + Math.max(1, granularityMinutes) * 60_000;
   if (blocked.some((b) => b.start < end && b.end > start)) return 'block';
   if (occupied.some((o) => o.start < end && o.end > start)) return 'booked';
   return undefined;
@@ -132,8 +132,8 @@ export function buildCapacitySlots(params: {
   now: number;
 }): SlotView[] {
   const { shiftIntervals, granularityMinutes, occupied, blocked, durationMinutes, now } = params;
-  const step = granularityMinutes * 60_000;
-  const duration = Math.max(granularityMinutes, durationMinutes) * 60_000;
+  const step = Math.max(1, granularityMinutes) * 60_000;
+  const duration = Math.max(1, granularityMinutes, durationMinutes) * 60_000;
   const capacity = Math.max(1, Math.floor(params.capacity));
   const slots: SlotView[] = [];
 

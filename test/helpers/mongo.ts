@@ -27,11 +27,15 @@ export class NoopIdentityGateway implements IdentityGateway {
     lastName?: string;
     temporaryPassword: string;
     persistentPassword?: boolean;
+    requiredActions?: string[];
+    enabled?: boolean;
   }): Promise<{ sub: string }> {
     const sub = `${this.nextSub}`;
     this.nextSub = `kc-test-${Number(this.nextSub.split('-').pop()) + 1}`.padStart(9, '0');
     return { sub };
   }
+  async setEnabled(): Promise<void> {}
+  async deleteUser(): Promise<void> {}
   async findByEmail(): Promise<IdentityUser | null> {
     return null;
   }

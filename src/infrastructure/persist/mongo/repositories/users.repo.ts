@@ -1,12 +1,13 @@
-import { ClientSession, Db } from 'mongodb';
+import { ClientSession, Db, ObjectId } from 'mongodb';
 import { ConflictError } from '../../../../shared/errors';
 import {
   AuditLogRepository,
   PlatformUserRepository,
+  PendingRegistrationRepository,
   TenantUserRepository,
   UserProfileRepository,
 } from '../../../../domain/ports/repositories';
-import { PlatformUser, TenantUser, UserProfile } from '../../../../domain/entities';
+import { PlatformUser, PendingRegistration, TenantUser, UserProfile } from '../../../../domain/entities';
 import { coll } from './base';
 import { bsonId } from '../bson';
 import { tenantUserToDomain } from '../mappers/mappers';
@@ -125,6 +126,11 @@ export class UserProfileMongoRepository implements UserProfileRepository {
     return doc ? this.#toDomain(doc) : null;
   }
 
+  async findByVerificationToken(token: string): Promise<UserProfile | null> {
+    const doc = await this.collection.findOne({ verification_token: token }, { session: this.session });
+    return doc ? this.#toDomain(doc) : null;
+  }
+
   async upsert(profile: UserProfile): Promise<UserProfile> {
     const now = new Date();
     await this.collection.updateOne(
@@ -137,6 +143,12 @@ export class UserProfileMongoRepository implements UserProfileRepository {
           ...(profile.name ? { name: profile.name } : {}),
           ...(profile.email ? { email: profile.email } : {}),
           ...(profile.inviteSentAt ? { invite_sent_at: new Date(profile.inviteSentAt) } : {}),
+          ...(profile.phoneVerified !== undefined ? { phone_verified: profile.phoneVerified } : {}),
+          ...(profile.verificationCodeHash ? { verification_code_hash: profile.verificationCodeHash } : {}),
+          ...(profile.codeExpiresAt ? { code_expires_at: new Date(profile.codeExpiresAt) } : {}),
+          ...(profile.codeSentAt ? { code_sent_at: new Date(profile.codeSentAt) } : {}),
+          ...(profile.verificationToken ? { verification_token: profile.verificationToken } : {}),
+          ...(profile.verificationAttempts !== undefined ? { verification_attempts: profile.verificationAttempts } : {}),
           updated_at: now,
         },
         $setOnInsert: {
@@ -166,8 +178,144 @@ export class UserProfileMongoRepository implements UserProfileRepository {
       name: typeof doc.name === 'string' ? doc.name : undefined,
       email: typeof doc.email === 'string' ? doc.email : undefined,
       inviteSentAt: doc.invite_sent_at ? new Date(doc.invite_sent_at as Date).toISOString() : undefined,
+      phoneVerified: typeof doc.phone_verified === 'boolean' ? doc.phone_verified : undefined,
+      verificationCodeHash: typeof doc.verification_code_hash === 'string' ? doc.verification_code_hash : undefined,
+      codeExpiresAt: doc.code_expires_at ? new Date(doc.code_expires_at as Date).toISOString() : undefined,
+      codeSentAt: doc.code_sent_at ? new Date(doc.code_sent_at as Date).toISOString() : undefined,
+      verificationToken: typeof doc.verification_token === 'string' ? doc.verification_token : undefined,
+      verificationAttempts: typeof doc.verification_attempts === 'number' ? doc.verification_attempts : undefined,
       updatedAt: new Date(doc.updated_at as Date).toISOString(),
       createdAt: new Date(doc.created_at as Date).toISOString(),
+    };
+  }
+}
+
+export class PendingRegistrationMongoRepository implements PendingRegistrationRepository {
+  private readonly collection;
+  constructor(db: Db, private readonly session?: ClientSession) {
+    this.collection = coll(db, 'pending_registrations');
+    // TTL de 30 minutos: los registros no verificados se borran solos.
+    void this.collection.createIndex({ created_at: 1 }, { expireAfterSeconds: 1800 });
+    void this.collection.createIndex({ registration_id: 1 }, { unique: true });
+  }
+
+  async create(registration: PendingRegistration): Promise<void> {
+    await this.collection.updateOne(
+      { registration_id: registration.id },
+      {
+        $set: {
+          email: registration.email,
+          phone: registration.phone,
+          phone_digits: registration.phoneDigits,
+          first_name: registration.firstName,
+          last_name: registration.lastName,
+          city: registration.city,
+          password_encrypted: registration.passwordEncrypted,
+          code_hash: registration.codeHash,
+          code_expires_at: new Date(registration.codeExpiresAt),
+          updated_at: new Date(),
+        },
+        $setOnInsert: {
+          created_at: new Date(registration.createdAt),
+        },
+      },
+      { upsert: true, session: this.session },
+    );
+  }
+
+  async findById(id: string): Promise<PendingRegistration | null> {
+    const doc = await this.collection.findOne({ registration_id: id }, { session: this.session });
+    return doc ? this.#toDomain(doc) : null;
+  }
+
+  async findByPhone(phoneDigits: string): Promise<PendingRegistration | null> {
+    const doc = await this.collection.findOne({ phone_digits: phoneDigits }, { session: this.session });
+    return doc ? this.#toDomain(doc) : null;
+  }
+
+  async findByEmail(email: string): Promise<PendingRegistration | null> {
+    const doc = await this.collection.findOne({ email }, { session: this.session });
+    return doc ? this.#toDomain(doc) : null;
+  }
+
+  async deleteById(id: string): Promise<boolean> {
+    const res = await this.collection.deleteOne({ registration_id: id }, { session: this.session });
+    return res.deletedCount > 0;
+  }
+
+  async deleteByPhone(phoneDigits: string): Promise<boolean> {
+    const res = await this.collection.deleteOne({ phone_digits: phoneDigits }, { session: this.session });
+    return res.deletedCount > 0;
+  }
+
+  async markAsVerified(id: string): Promise<void> {
+    await this.collection.updateOne(
+      { registration_id: id },
+      {
+        $set: {
+          code_hash: '',
+          verification_attempts: 0,
+          phone_verified: true,
+          updated_at: new Date(),
+        },
+      },
+      { session: this.session },
+    );
+  }
+
+  async markCompleted(id: string, data: { keycloakUserId: string; completedAt: string }): Promise<void> {
+    const completedAt = new Date(data.completedAt);
+    await this.collection.updateOne(
+      { registration_id: id },
+      {
+        $set: {
+          phone_verified: true,
+          code_hash: '',
+          // La contraseña ya no se necesita: el usuario existe en Keycloak.
+          password_encrypted: '',
+          keycloak_user_id: data.keycloakUserId,
+          completed_at: completedAt,
+          // Extiende la vida del registro (TTL de 30 min) para que el frontend
+          // pueda consultar el estado después de completar la verificación.
+          created_at: completedAt,
+          updated_at: new Date(),
+        },
+      },
+      { session: this.session },
+    );
+  }
+
+  async incrementAttempts(id: string, attempts: number): Promise<void> {
+    await this.collection.updateOne(
+      { registration_id: id },
+      {
+        $set: {
+          verification_attempts: attempts,
+          updated_at: new Date(),
+        },
+      },
+      { session: this.session },
+    );
+  }
+
+  #toDomain(doc: Record<string, unknown>): PendingRegistration {
+    return {
+      id: String(doc.registration_id),
+      email: String(doc.email),
+      phone: String(doc.phone),
+      phoneDigits: String(doc.phone_digits ?? ''),
+      firstName: typeof doc.first_name === 'string' ? doc.first_name : '',
+      lastName: typeof doc.last_name === 'string' ? doc.last_name : '',
+      city: typeof doc.city === 'string' ? doc.city : '',
+      passwordEncrypted: typeof doc.password_encrypted === 'string' ? doc.password_encrypted : '',
+      codeHash: typeof doc.code_hash === 'string' ? doc.code_hash : '',
+      codeExpiresAt: doc.code_expires_at ? new Date(doc.code_expires_at as Date).toISOString() : '',
+      createdAt: doc.created_at ? new Date(doc.created_at as Date).toISOString() : '',
+      phoneVerified: typeof doc.phone_verified === 'boolean' ? doc.phone_verified : undefined,
+      verificationAttempts: typeof doc.verification_attempts === 'number' ? doc.verification_attempts : undefined,
+      updatedAt: doc.updated_at ? new Date(doc.updated_at as Date).toISOString() : undefined,
+      completedAt: doc.completed_at ? new Date(doc.completed_at as Date).toISOString() : undefined,
+      keycloakUserId: typeof doc.keycloak_user_id === 'string' ? doc.keycloak_user_id : undefined,
     };
   }
 }

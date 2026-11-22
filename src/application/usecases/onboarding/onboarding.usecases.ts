@@ -15,6 +15,7 @@ import {
 } from '../../../domain/ports/repositories';
 import { IdentityGateway } from '../../../domain/ports/gateways';
 import { hexId, uuid } from '../../../shared/id';
+import { randomBytes } from 'node:crypto';
 
 export interface Actor {
   keycloakUserId: string;
@@ -24,6 +25,39 @@ export interface Actor {
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const SETTING_RANGES: Partial<Record<keyof Tenant['settings'], readonly [number, number]>> = {
+  slotGranularityMinutes: [1, 1440],
+  cancellationToleranceHours: [0, 720],
+  paymentTimeoutMinutes: [1, 1440],
+  advancePaymentPercentage: [0, 100],
+  reminderHours: [0, 720],
+};
+const ALLOWED_SETTING_KEYS: ReadonlySet<string> = new Set([
+  ...Object.keys(SETTING_RANGES),
+  'bookingMode',
+  'capacityPerSlot',
+  'preferredNotificationChannel',
+  'defaultLanguage',
+  'activeLanguages',
+]);
+
+function sanitizeSettings(input: Partial<Tenant['settings']>): Partial<Tenant['settings']> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!ALLOWED_SETTING_KEYS.has(key) || value === undefined) continue;
+    const range = SETTING_RANGES[key as keyof Tenant['settings']];
+    if (range) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new ValidationError('invalid setting value', { setting: key });
+      }
+      result[key] = Math.min(range[1], Math.max(range[0], value));
+    } else {
+      result[key] = value;
+    }
+  }
+  return result as Partial<Tenant['settings']>;
+}
 
 export class OnboardingUseCases {
   constructor(
@@ -84,11 +118,7 @@ export class OnboardingUseCases {
       reminderHours: 24,
     };
     if (input.settings) {
-      for (const [key, value] of Object.entries(input.settings) as Array<[keyof Tenant['settings'], unknown]>) {
-        if (value !== undefined) {
-          (mergedSettings as unknown as Record<string, unknown>)[key] = value;
-        }
-      }
+      Object.assign(mergedSettings, sanitizeSettings(input.settings));
     }
     const tenant: Tenant = {
       id: hexId(),
@@ -170,6 +200,10 @@ export class OnboardingUseCases {
     if (!input.serviceIds.length) {
       throw new ValidationError('at least one serviceId is required');
     }
+    for (const sid of new Set(input.serviceIds)) {
+      const svc = await this.deps.services.findById(tenantId, sid);
+      if (!svc) throw new NotFoundError('Service', sid);
+    }
 
     const existingByEmail = await this.deps.identity.findByEmail(email);
     let sub = existingByEmail?.sub;
@@ -179,7 +213,7 @@ export class OnboardingUseCases {
     if (!sub) {
       temporaryPassword = tempPassword();
       const created = await this.deps.identity.createUser({
-        username: email,
+        username: `ry-${randomBytes(4).toString('hex')}`,
         email,
         firstName: input.name.trim().split(' ')[0],
         lastName: input.name.trim().split(' ').slice(1).join(' '),
@@ -283,6 +317,7 @@ export class OnboardingUseCases {
   }
 }
 
-function tempPassword(): string {
-  return `Ry!${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+export function tempPassword(): string {
+  // Prefijo fijo: cumple los requisitos de clase de caracteres del IdP.
+  return `Ry9!${randomBytes(12).toString('base64url')}`;
 }

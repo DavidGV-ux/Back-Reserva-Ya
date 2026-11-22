@@ -7,12 +7,12 @@ import { requireAuth } from '../middleware/auth';
 import { KeycloakVerifier } from '../../../infrastructure/auth/keycloak';
 import { TENANT_CATEGORIES } from '../../../domain/entities';
 
-const onboardingSchema = z.object({
+export const onboardingSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'kebab-case requerido'),
-  name: z.string().min(1),
+  name: z.string().min(1).max(100),
   category: z.enum(TENANT_CATEGORIES).optional(),
-  tagline: z.string().optional(),
-  description: z.string().optional(),
+  tagline: z.string().max(200).optional(),
+  description: z.string().max(1000).optional(),
   timezone: z.string().optional(),
   country: z.string().optional(),
   city: z.string().optional(),
@@ -23,12 +23,13 @@ const onboardingSchema = z.object({
   coverUrl: z.string().optional(),
   settings: z
     .object({
-      cancellationToleranceHours: z.number().optional(),
-      upfrontPercent: z.number().min(0).max(100).optional(),
-      slotGranularityMinutes: z.number().optional(),
+      cancellationToleranceHours: z.number().int().min(0).max(720).optional(),
+      upfrontPercent: z.number().int().min(0).max(100).optional(),
+      slotGranularityMinutes: z.number().int().min(1).max(1440).optional(),
       bookingMode: z.enum(['exclusive', 'capacity']).optional(),
       capacityPerSlot: z.number().int().min(1).max(500).optional(),
-      paymentTimeoutMinutes: z.number().optional(),
+      paymentTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
+      reminderHours: z.number().int().min(0).max(720).optional(),
       preferredNotificationChannel: z.enum(['whatsapp', 'email', 'sms']).optional(),
     })
     .optional(),
@@ -71,9 +72,10 @@ export function onboardingRouter(services: AppServices, verifier: KeycloakVerifi
               cancellationToleranceHours: body.settings?.cancellationToleranceHours,
               advancePaymentPercentage: body.settings?.upfrontPercent,
               slotGranularityMinutes: body.settings?.slotGranularityMinutes,
-            bookingMode: body.settings?.bookingMode,
-            capacityPerSlot: body.settings?.capacityPerSlot,
+              bookingMode: body.settings?.bookingMode,
+              capacityPerSlot: body.settings?.capacityPerSlot,
               paymentTimeoutMinutes: body.settings?.paymentTimeoutMinutes,
+              reminderHours: body.settings?.reminderHours,
               preferredNotificationChannel: body.settings?.preferredNotificationChannel,
             }
           : undefined,

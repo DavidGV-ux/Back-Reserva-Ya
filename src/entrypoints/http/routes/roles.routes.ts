@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppServices } from '../../../application/container';
-import { NotFoundError, ValidationError } from '../../../shared/errors';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors';
 import { asyncRoute } from '../middleware/errors';
 import {
   requireAuth,
@@ -21,9 +21,22 @@ const serviceSchema = z.object({
   currency: z.enum(['COP', 'USD']).optional(),
 });
 
-const versionedPatch = z.object({
+export const versionedPatch = z.object({
   version: z.number().int().min(1),
-  patch: z.record(z.string(), z.unknown()),
+  patch: z
+    .object({
+      name: z.string().min(1).max(100).refine((v) => !/<[a-z!/]/i.test(v), 'invalid name').optional(),
+      title: z.string().max(200).optional(),
+      avatarUrl: z.string().optional(),
+      serviceIds: z.array(z.string().min(1)).min(1).optional(),
+      schedule: z.record(z.string(), z.array(z.object({ start: z.string(), end: z.string() }))).optional(),
+      brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+      price: z.number().min(0).optional(),
+      durationMinutes: z.number().int().min(1).optional(),
+      description: z.string().max(1000).optional(),
+      currency: z.enum(['COP', 'USD']).optional(),
+    })
+    .strict(),
 });
 
 const professionalSchema = z.object({
@@ -55,6 +68,16 @@ const inviteProfessionalSchema = z.object({
 const profileSchema = z.object({
   phone: z.string().min(7, 'teléfono requerido'),
   city: z.string().optional(),
+});
+
+const brandingSchema = z.object({
+  version: z.number().int().min(1),
+  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+});
+
+const brandingLogoSchema = z.object({
+  version: z.number().int().min(1),
+  image: z.string().min(1).max(600_000),
 });
 
 export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): Router {
@@ -128,6 +151,74 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
 
   // ---------------------------------------------------------------- owner
   router.get(
+    '/owner/:tenantId/branding',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const tenant = await services.tenants.getBranding(param(req, 'tenantId'));
+      res.json(tenant);
+    }),
+  );
+
+  router.patch(
+    '/owner/:tenantId/branding',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const parsed = brandingSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError('invalid branding payload', { issues: parsed.error.issues });
+      }
+      const tenant = await services.tenants.updateBranding({
+        tenantId: param(req, 'tenantId'),
+        actor: req.principal!.sub,
+        version: parsed.data.version,
+        brandColor: parsed.data.brandColor,
+      });
+      res.json(tenant);
+    }),
+  );
+
+  router.put(
+    '/owner/:tenantId/branding/logo',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const parsed = brandingLogoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError('invalid logo payload', { issues: parsed.error.issues });
+      }
+      const tenant = await services.tenants.uploadLogo({
+        tenantId: param(req, 'tenantId'),
+        actor: req.principal!.sub,
+        version: parsed.data.version,
+        image: parsed.data.image,
+      });
+      res.json(tenant);
+    }),
+  );
+
+  router.delete(
+    '/owner/:tenantId/branding/logo',
+    requireAuth(verifier),
+    requireTenantHeader,
+    requireTenantMembership(services, ['owner']),
+    asyncRoute(async (req, res) => {
+      const version = Number(req.query.version ?? req.body?.version);
+      if (!Number.isInteger(version) || version < 1) throw new ValidationError('version is required');
+      const tenant = await services.tenants.removeLogo({
+        tenantId: param(req, 'tenantId'),
+        actor: req.principal!.sub,
+        version,
+      });
+      res.json(tenant);
+    }),
+  );
+
+  router.get(
     '/owner/:tenantId/overview',
     requireAuth(verifier),
     requireTenantHeader,
@@ -144,8 +235,11 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     requireTenantHeader,
     requireTenantMembership(services, ['owner']),
     asyncRoute(async (req, res) => {
-      const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : undefined;
-      const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : undefined;
+      const fromRaw = typeof req.query.from === 'string' && req.query.from ? req.query.from : undefined;
+      const toRaw = typeof req.query.to === 'string' && req.query.to ? req.query.to : undefined;
+      // Validate date format (ISO 8601) to prevent NoSQL injection
+      const from = fromRaw && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(fromRaw) ? fromRaw : undefined;
+      const to = toRaw && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(toRaw) ? toRaw : undefined;
       const result = await services.dashboard.ownerAppointments({
         tenantId: param(req, 'tenantId'),
         from,
@@ -257,7 +351,8 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     requireTenantHeader,
     requireTenantMembership(services, ['owner']),
     asyncRoute(async (req, res) => {
-      const serviceId = typeof req.query.serviceId === 'string' ? req.query.serviceId : undefined;
+      const serviceIdRaw = typeof req.query.serviceId === 'string' ? req.query.serviceId : undefined;
+      const serviceId = serviceIdRaw && /^[a-zA-Z0-9_-]{1,64}$/.test(serviceIdRaw) ? serviceIdRaw : undefined;
       const list = await services.catalog.listProfessionals(param(req, 'tenantId'), serviceId);
       res.json(list);
     }),
@@ -327,7 +422,7 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
         id: param(req, 'professionalId'),
         actor: req.principal!.sub,
         expectedVersion: parsed.data.version,
-        patch: parsed.data.patch,
+        patch: { ...parsed.data.patch, schedule: parsed.data.patch.schedule as WeeklySchedule | undefined },
       });
       res.json(professional);
     }),
@@ -393,9 +488,11 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     asyncRoute(async (req, res) => {
       const from = requiredStr(req.query.from);
       const to = requiredStr(req.query.to);
-      const professionalId =
-        (typeof req.query.professionalId === 'string' ? req.query.professionalId : undefined) ??
-        (await resolveProfessionalForUser(services, param(req, 'tenantId'), req.principal!.sub));
+      const professionalId = await resolveProfessionalForUser(services, param(req, 'tenantId'), req.principal!.sub);
+      const requested = typeof req.query.professionalId === 'string' ? req.query.professionalId : undefined;
+      if (requested && requested !== professionalId) {
+        throw new ForbiddenError('cannot access another professional');
+      }
       const agenda = await services.dashboard.professionalAgenda({
         tenantId: param(req, 'tenantId'),
         professionalId,
@@ -414,9 +511,10 @@ export function rolesRouter(services: AppServices, verifier: KeycloakVerifier): 
     asyncRoute(async (req, res) => {
       const parsed = blockSchema.safeParse(req.body);
       if (!parsed.success) throw new ValidationError('invalid block', { issues: parsed.error.issues });
-      const professionalId =
-        parsed.data.professionalId ??
-        (await resolveProfessionalForUser(services, param(req, 'tenantId'), req.principal!.sub));
+      const professionalId = await resolveProfessionalForUser(services, param(req, 'tenantId'), req.principal!.sub);
+      if (parsed.data.professionalId && parsed.data.professionalId !== professionalId) {
+        throw new ForbiddenError('cannot access another professional');
+      }
       const block = await services.booking.createAvailabilityBlock({
         tenantId: param(req, 'tenantId'),
         professionalId,

@@ -11,6 +11,13 @@ export interface UserProfile {
   name?: string;
   email?: string;
   inviteSentAt?: string;
+  // Verificación del número por WhatsApp (código de 6 dígitos):
+  phoneVerified?: boolean;
+  verificationCodeHash?: string;
+  codeExpiresAt?: string;
+  codeSentAt?: string;
+  verificationAttempts?: number;
+  verificationToken?: string;
   updatedAt: string;
   createdAt: string;
 }

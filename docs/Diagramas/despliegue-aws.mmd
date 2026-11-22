@@ -1,0 +1,32 @@
+flowchart TD
+  subgraph Web["Portal web"]
+    CF["CloudFront"]
+    S3["S3 · activos"]
+    SSR["Lambda · Angular SSR"]
+    CF --> S3
+    CF --> SSR
+  end
+  subgraph Backend["API de reservas"]
+    GW["API Gateway"]
+    API["Lambda · API"]
+    DB["MongoDB Atlas"]
+    GW --> API --> DB
+  end
+  subgraph Chat["Canal WhatsApp"]
+    Meta["Meta WhatsApp"]
+    WH["Webhook del bot"]
+    SQS["Cola SQS"]
+    BOT["Procesador de mensajes"]
+    IA["Proveedor de IA"]
+    Meta --> WH --> SQS --> BOT
+    BOT --> IA
+  end
+  subgraph Identity["Identidad"]
+    KC["Keycloak en EC2"]
+    PG["PostgreSQL"]
+    KC --> PG
+  end
+  SSR --> GW
+  CF -. OIDC .-> KC
+  BOT --> GW
+  API --> PAY["Pasarela de pagos"]

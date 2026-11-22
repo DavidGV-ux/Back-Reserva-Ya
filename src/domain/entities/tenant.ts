@@ -75,6 +75,8 @@ export interface Tenant {
   city?: string;
   logoUrl?: string;
   coverUrl?: string;
+  /** Color de marca del negocio en formato #RRGGBB; solo aplica a su sitio público. */
+  brandColor?: string;
   address?: string;
   phone?: string;
   settings: TenantConfig;

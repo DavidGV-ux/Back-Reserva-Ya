@@ -183,9 +183,46 @@ describe('booking flow (integration)', () => {
     expect(noon!.available).toBe(true);
   });
 
+  it('does not refund when cancelling an appointment whose advance was never paid', async () => {
+    const start = bogotaIso(monday, 16);
+    const created = await ctx.services.booking.createAppointment({ ...bookingInput(start, `key-${hexId()}`), actor: 'web-test' });
+    expect(created.appointment.paymentStatus).toBe('pending');
+
+    const cancelled = await ctx.services.booking.cancelAppointment({
+      tenantId: tenant.tenantId,
+      appointmentId: created.appointment.id,
+      requestedBy: 'owner',
+      reason: 'Sin pago',
+      actor: 'owner-test',
+    });
+    expect(cancelled.status).toBe('cancelled');
+    expect(cancelled.cancellation?.refundAmount).toBe(0);
+    expect(cancelled.cancellation?.refundStatus).toBe('not_applicable');
+    expect(cancelled.paymentStatus).toBe('pending');
+
+    const refundTx = await ctx.repos.paymentTransactions.findByInternalReference(
+      tenant.tenantId,
+      `${created.intent.paymentReference}-R`,
+    );
+    expect(refundTx).toBeNull();
+  });
+
   it('owner cancellation inside the window refunds the full advance and frees the slot', async () => {
     const start = bogotaIso(monday, 15);
     const created = await ctx.services.booking.createAppointment({ ...bookingInput(start, `key-${hexId()}`), actor: 'web-test' });
+    // El anticipo debe estar cobrado para que haya reembolso.
+    await ctx.services.payments.processWebhook({
+      tenantId: tenant.tenantId,
+      rawEvent: {
+        type: 'payment.charge.approved',
+        data: {
+          reference: created.intent.paymentReference,
+          amount: created.intent.advanceAmount,
+          currency: created.intent.currency,
+          tenantId: tenant.tenantId,
+        },
+      },
+    });
     const cancelled = await ctx.services.booking.cancelAppointment({
       tenantId: tenant.tenantId,
       appointmentId: created.appointment.id,
