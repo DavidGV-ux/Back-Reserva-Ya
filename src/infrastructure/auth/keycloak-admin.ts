@@ -162,14 +162,28 @@ export class KeycloakAdminGateway implements IdentityGateway {
     });
     const expected = [201, 200];
     if (!expected.includes(res.status)) {
-      // Si una creación anterior terminó después de crear el usuario en
-      // Keycloak pero antes de marcar el pending, reutilizarlo evita que el
-      // reenvío por WhatsApp quede trabado en un 400 permanente.
-      if (res.status === 400 && input.email) {
+      // Solo reutilizar el usuario ante un 400 de DUPLICADO. Un 400 por
+      // contraseña inválida debe propagarse con su motivo, no buscar otro usuario.
+      let detail = '';
+      if (res.status === 400) {
+        try {
+          const body = (await res.json()) as {
+            errorMessage?: string;
+            error_description?: string;
+            error?: string;
+          };
+          detail = String(body.errorMessage ?? body.error_description ?? body.error ?? '');
+        } catch {
+          // Respuesta sin cuerpo JSON: no hay motivo que propagar.
+        }
+      }
+      if (res.status === 400 && input.email && /exist|duplicate|already|conflict/i.test(detail)) {
         const existing = await this.findByEmail(input.email);
         if (existing?.sub) return { sub: existing.sub };
       }
-      throw new Error(`Identity provider user creation failed (${res.status})`);
+      throw new Error(
+        `Identity provider user creation failed (${res.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`,
+      );
     }
     const location = res.headers.get('location');
     if (!location) {

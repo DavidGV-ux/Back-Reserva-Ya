@@ -41,8 +41,8 @@ const registerBody = {
   email: 'ana@test.com',
   phone: '+573001112233',
   city: 'Tunja',
-  password: 'secreta123',
-  confirmPassword: 'secreta123',
+  password: 'Secreta123!',
+  confirmPassword: 'Secreta123!',
   habeasDataConsent: true,
 };
 
@@ -518,7 +518,10 @@ describe('RY-VERIFY-RETRY — reintentar la verificación no rompe el registro',
         });
       }
       if (u.endsWith('/users') && init?.method === 'POST') {
-        return new Response('', { status: 400 });
+        return new Response(
+          JSON.stringify({ error: 'userExistsMsg', errorMessage: 'User exists with same email' }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        );
       }
       if (u.includes('/users?email=') && (init?.method ?? 'GET') === 'GET') {
         return new Response(JSON.stringify([{ id: 'kc-existente', email: 'ana@test.com' }]), {
@@ -546,6 +549,108 @@ describe('RY-VERIFY-RETRY — reintentar la verificación no rompe el registro',
       });
 
       expect(created).toEqual({ sub: 'kc-existente' });
+    } finally {
+      vi.unstubAllGlobals();
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RY-PASSWORD-POLICY
+// ---------------------------------------------------------------------------
+
+describe('RY-PASSWORD-POLICY — la contraseña cumple la política real del realm', () => {
+  it('RY-PASSWORD-POLICY · /register rechaza contraseña sin carácter especial antes de guardar el pending', async () => {
+    const profile = {
+      requestCode: vi.fn(),
+      findByPhone: vi.fn().mockResolvedValue(null),
+    };
+    const identity = { findByEmail: vi.fn().mockResolvedValue(null) };
+    const { app } = mountAuth(profile, identity);
+
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ ...registerBody, password: 'Secreta123', confirmPassword: 'Secreta123' });
+
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(res.body)).toContain('password');
+    expect(profile.requestCode).not.toHaveBeenCalled();
+  });
+
+  it('RY-PASSWORD-POLICY · /register rechaza contraseña sin mayúscula', async () => {
+    const profile = { requestCode: vi.fn(), findByPhone: vi.fn().mockResolvedValue(null) };
+    const { app } = mountAuth(profile, { findByEmail: vi.fn().mockResolvedValue(null) });
+
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ ...registerBody, password: 'secreta1!', confirmPassword: 'secreta1!' });
+
+    expect(res.status).toBe(422);
+    expect(profile.requestCode).not.toHaveBeenCalled();
+  });
+
+  it('RY-PASSWORD-POLICY · /register acepta contraseña con letras, dígito y especial', async () => {
+    const profile = {
+      requestCode: vi.fn().mockResolvedValue({
+        id: 'p1',
+        code: '123456',
+        verificationToken: 'RY-ab12cd34ef56',
+        retryAfterSeconds: 0,
+      }),
+      findByPhone: vi.fn().mockResolvedValue(null),
+    };
+    const { app } = mountAuth(profile, { findByEmail: vi.fn().mockResolvedValue(null) });
+
+    const res = await request(app)
+      .post('/auth/register')
+      .send({ ...registerBody, password: 'Secreta123!', confirmPassword: 'Secreta123!' });
+
+    expect(res.status).toBe(201);
+    expect(profile.requestCode).toHaveBeenCalledWith(
+      expect.objectContaining({ password: 'Secreta123!' }),
+    );
+  });
+
+  it('RY-PASSWORD-POLICY · un 400 de Keycloak por contraseña NO se trata como email duplicado', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchStub = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/protocol/openid-connect/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 300 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (u.endsWith('/users') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ error: 'invalidPasswordMsg', errorMessage: 'Invalid password' }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchStub);
+
+    try {
+      const gateway = new KeycloakAdminGateway({
+        baseUrl: 'http://keycloak.local',
+        realm: 'x',
+        clientId: 'admin-cli',
+        clientSecret: 'secret',
+      });
+      await expect(
+        gateway.createUser({
+          username: 'ry-1',
+          email: 'ana@test.com',
+          temporaryPassword: 'secreta123',
+          persistentPassword: true,
+          enabled: true,
+        }),
+      ).rejects.toThrow(/Invalid password/i);
+      expect(fetchStub.mock.calls.some((call) => String(call[0]).includes('/users?email='))).toBe(
+        false,
+      );
     } finally {
       vi.unstubAllGlobals();
       globalThis.fetch = originalFetch;
