@@ -24,7 +24,16 @@ const registerSchema = z
     email: z.string().trim().toLowerCase().email('invalid email').max(254, 'email too long'),
     phone: z.string().trim().min(7, 'phone too short').max(20, 'phone too long').regex(/^[+\d\s()-]{7,20}$/, 'phone must contain only digits'),
     city: z.string().trim().max(80, 'city too long').optional().refine((v) => !v || !/\d/.test(v), 'city must not contain digits').refine((v) => !v || (!/[<>]/.test(v) && !/<[a-z]/i.test(v)), 'city must not contain HTML'),
-    password: z.string().min(8, 'password too short').max(72, 'password too long').refine((v) => /[a-zA-Z]/.test(v) && /\d/.test(v), 'password must contain letters and digits'),
+    // Muestra la política real del realm de Keycloak para no crear un pending
+    // que después no se puede completar con un 400 opaco.
+    password: z
+      .string()
+      .min(8, 'password too short')
+      .max(72, 'password too long')
+      .refine((v) => /[a-z]/.test(v), 'password must contain a lowercase letter')
+      .refine((v) => /[A-Z]/.test(v), 'password must contain an uppercase letter')
+      .refine((v) => /\d/.test(v), 'password must contain a digit')
+      .refine((v) => /[^A-Za-z0-9]/.test(v), 'password must contain a special character'),
     confirmPassword: z.string(),
     habeasDataConsent: z.literal(true),
   })
