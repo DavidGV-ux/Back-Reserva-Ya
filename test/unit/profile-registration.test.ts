@@ -247,4 +247,29 @@ describe('ProfileUseCases — reintento de registro (bucle de verificación)', (
     expect(second.alreadyVerified).toBe(true);
     expect(second.id).toBe(first.id);
   });
+
+  it('reenviar el mensaje tras completar el registro sigue devolviendo éxito idempotente', async () => {
+    const first = await usecases.requestCode(baseInput);
+    await usecases.verifyVerificationTokenByPhone({
+      phone: baseInput.phone,
+      token: first.verificationToken,
+    });
+    await usecases.completeRegistration({
+      id: first.id,
+      identity: { createUser: async () => ({ sub: 'kc-123' }) },
+    });
+
+    const retry = await usecases.verifyVerificationTokenByPhone({
+      phone: baseInput.phone,
+      token: first.verificationToken,
+    });
+
+    expect(retry).toEqual({ id: first.id, verified: true });
+    await expect(
+      usecases.completeRegistration({
+        id: first.id,
+        identity: { createUser: async () => ({ sub: 'kc-otro' }) },
+      }),
+    ).resolves.toEqual({ keycloakUserId: 'kc-123' });
+  });
 });
