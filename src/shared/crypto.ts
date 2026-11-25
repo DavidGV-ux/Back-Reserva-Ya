@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
 /**
  * Cifrado simétrico para secretos guardados en reposo (contraseñas de registros
@@ -34,4 +34,17 @@ export function decryptSecret(payload: string): string {
     decipher.update(Buffer.from(cipherHex, 'hex')),
     decipher.final(),
   ]).toString('utf8');
+}
+
+/**
+ * Token del deep link de WhatsApp: firma corta del par (id, hash del código).
+ * El navegador puede mostrarlo, pero nunca contiene el OTP; al cambiar el
+ * código cambia el token y los enlaces viejos dejan de verificar.
+ */
+export function buildVerificationToken(id: string, codeHash: string): string {
+  const signature = createHmac('sha256', key())
+    .update(`${id}:${codeHash}`)
+    .digest('hex')
+    .slice(0, 12);
+  return `RY-${signature}`;
 }

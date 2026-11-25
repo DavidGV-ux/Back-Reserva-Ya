@@ -3,7 +3,7 @@ import { UserProfileRepository, PendingRegistrationRepository } from '../../../d
 import { UserProfile, PendingRegistration } from '../../../domain/entities';
 import { ConflictError, ValidationError } from '../../../shared/errors';
 import { normalizePhoneE164 } from '../../../shared/phone';
-import { decryptSecret, encryptSecret } from '../../../shared/crypto';
+import { buildVerificationToken, decryptSecret, encryptSecret } from '../../../shared/crypto';
 import { publishPhoneVerificationCode, publishUserInvite } from '../../../entrypoints/http/whatsapp-events';
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 min
@@ -96,7 +96,13 @@ export class ProfileUseCases {
     firstName: string;
     lastName: string;
     password: string;
-  }): Promise<{ id: string; code: string; retryAfterSeconds: number; alreadyVerified?: boolean }> {
+  }): Promise<{
+    id: string;
+    code: string;
+    verificationToken: string;
+    retryAfterSeconds: number;
+    alreadyVerified?: boolean;
+  }> {
     const phone = normalizePhoneE164(input.phone);
     if (!phone) {
       throw new ValidationError('phone is not a valid E.164 number', { phone: input.phone });
@@ -120,21 +126,18 @@ export class ProfileUseCases {
           // en Keycloak): devolver el id para que el route complete el registro.
           return {
             id: existingPending.id,
-            code: existingPending.code ?? '',
+            code: '',
+            verificationToken: '',
             retryAfterSeconds: 0,
             alreadyVerified: true,
           };
         }
         if (samePerson) {
-          // Reintento legítimo: reanudar sin cooldown, reseteando los intentos
-          // fallidos y extendiendo el TTL (misma fila, mismo id).
-          const codeStillValid =
-            Boolean(existingPending.code) &&
-            Boolean(existingPending.codeExpiresAt) &&
-            new Date(existingPending.codeExpiresAt).getTime() > Date.now();
-          const code: string = codeStillValid
-            ? existingPending.code ?? ''
-            : String(randomInt(0, 1_000_000)).padStart(6, '0');
+          // Reintento legítimo: reanuda el mismo id sin cooldown, pero genera
+          // un código nuevo para que el usuario pueda volver a enviarlo aunque
+          // el anterior estuviera vencido o nadie lo recibiera.
+          const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+          const codeHash = createHash('sha256').update(code).digest('hex');
           const now = Date.now();
           await this.repos.pendingRegistrations.deleteById(existingPending.id);
           await this.repos.pendingRegistrations.create({
@@ -143,14 +146,19 @@ export class ProfileUseCases {
             phone,
             phoneDigits,
             code,
-            codeHash: createHash('sha256').update(code).digest('hex'),
+            codeHash,
             codeExpiresAt: new Date(now + CODE_TTL_MS).toISOString(),
             createdAt: new Date(now).toISOString(),
             phoneVerified: undefined,
             verificationAttempts: 0,
           });
           await publishPhoneVerificationCode({ phone, code, name: existingPending.firstName });
-          return { id: existingPending.id, code, retryAfterSeconds: 0 };
+          return {
+            id: existingPending.id,
+            code,
+            verificationToken: buildVerificationToken(existingPending.id, codeHash),
+            retryAfterSeconds: 0,
+          };
         }
         // Datos distintos para el mismo teléfono: mantener el cooldown anti-spam.
         const now = Date.now();
@@ -187,7 +195,7 @@ export class ProfileUseCases {
     // Entrega fuera de banda: el código NUNCA se devuelve al navegador.
     await publishPhoneVerificationCode({ phone, code, name: input.firstName });
 
-    return { id, code, retryAfterSeconds: 0 };
+    return { id, code, verificationToken: buildVerificationToken(id, codeHash), retryAfterSeconds: 0 };
   }
 
   /**
@@ -202,7 +210,7 @@ export class ProfileUseCases {
   async resendCode(input: {
     id: string;
     phone?: string;
-  }): Promise<{ id: string; code: string; retryAfterSeconds: number }> {
+  }): Promise<{ id: string; code: string; verificationToken: string; retryAfterSeconds: number }> {
     const existing = await this.repos.pendingRegistrations.findById(input.id);
     if (!existing) {
       throw new ValidationError('no pending registration', { code: 'NO_PENDING_REGISTRATION' });
@@ -259,7 +267,12 @@ export class ProfileUseCases {
     await this.repos.pendingRegistrations.create(updated);
     await publishPhoneVerificationCode({ phone, code, name: existing.firstName });
 
-    return { id: updated.id, code, retryAfterSeconds: 0 };
+    return {
+      id: updated.id,
+      code,
+      verificationToken: buildVerificationToken(updated.id, codeHash),
+      retryAfterSeconds: 0,
+    };
   }
 
   /**
@@ -293,13 +306,46 @@ export class ProfileUseCases {
   }
 
   /**
+   * Valida el token del deep link (enviado por el propio usuario desde su
+   * WhatsApp). El token está ligado al teléfono del pending: otro número no
+   * puede usarlo para verificar la cuenta.
+   */
+  async verifyVerificationTokenByPhone(input: {
+    phone: string;
+    token: string;
+  }): Promise<{ id: string; verified: boolean }> {
+    const phoneDigits = input.phone.replace(/[^0-9]/g, '');
+    const registration = await this.repos.pendingRegistrations.findByPhone(phoneDigits);
+    if (!registration) {
+      throw new ValidationError('no pending registration', { code: 'NO_PENDING_REGISTRATION' });
+    }
+    // Reenviar el mismo mensaje tras una verificación previa es idempotente.
+    if (registration.phoneVerified === true) {
+      return this.verifyCodeHash(registration, registration.codeHash);
+    }
+    const expected = buildVerificationToken(registration.id, registration.codeHash);
+    const hash = input.token.trim() === expected ? registration.codeHash : 'invalid-token';
+    return this.verifyCodeHash(registration, hash);
+  }
+
+  /**
    * Obtiene un registro pendiente por su id (para polling de estado).
    */
   async getPendingById(id: string): Promise<PendingRegistration | null> {
     return this.repos.pendingRegistrations.findById(id);
   }
 
-  private async verifyPendingCode(registration: PendingRegistration | null, code: string): Promise<{ id: string; verified: boolean }> {
+  private async verifyPendingCode(
+    registration: PendingRegistration | null,
+    code: string,
+  ): Promise<{ id: string; verified: boolean }> {
+    return this.verifyCodeHash(registration, createHash('sha256').update(code.trim()).digest('hex'));
+  }
+
+  private async verifyCodeHash(
+    registration: PendingRegistration | null,
+    hash: string,
+  ): Promise<{ id: string; verified: boolean }> {
     if (!registration) {
       throw new ValidationError('no pending registration', { code: 'NO_PENDING_REGISTRATION' });
     }
@@ -307,7 +353,7 @@ export class ProfileUseCases {
       throw new ValidationError('registration already completed', { code: 'ALREADY_COMPLETED' });
     }
     // Ya verificado pero no completado (p. ej. falló la creación en Keycloak):
-    // reenviar el mismo código por WhatsApp no debe quedar en "código inválido";
+    // reenviar el mismo mensaje por WhatsApp no debe quedar en "código inválido";
     // se permite continuar para completar el registro.
     if (registration.phoneVerified === true) {
       return { id: registration.id, verified: true };
@@ -319,7 +365,6 @@ export class ProfileUseCases {
     if (attempts >= MAX_ATTEMPTS) {
       throw new ValidationError('too many attempts', { code: 'TOO_MANY_ATTEMPTS' });
     }
-    const hash = createHash('sha256').update(code.trim()).digest('hex');
     if (hash !== registration.codeHash) {
       await this.repos.pendingRegistrations.incrementAttempts(registration.id, attempts + 1);
       throw new ValidationError('invalid code', { code: 'INVALID_CODE' });
