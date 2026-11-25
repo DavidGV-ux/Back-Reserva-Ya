@@ -349,8 +349,10 @@ export class ProfileUseCases {
     if (!registration) {
       throw new ValidationError('no pending registration', { code: 'NO_PENDING_REGISTRATION' });
     }
+    // Reenviar el mensaje tras completar el registro es idempotente: el bot
+    // debe poder enviar la confirmación aunque Meta reintente el webhook.
     if (registration.completedAt) {
-      throw new ValidationError('registration already completed', { code: 'ALREADY_COMPLETED' });
+      return { id: registration.id, verified: true };
     }
     // Ya verificado pero no completado (p. ej. falló la creación en Keycloak):
     // reenviar el mismo mensaje por WhatsApp no debe quedar en "código inválido";

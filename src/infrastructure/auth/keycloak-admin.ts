@@ -162,6 +162,13 @@ export class KeycloakAdminGateway implements IdentityGateway {
     });
     const expected = [201, 200];
     if (!expected.includes(res.status)) {
+      // Si una creación anterior terminó después de crear el usuario en
+      // Keycloak pero antes de marcar el pending, reutilizarlo evita que el
+      // reenvío por WhatsApp quede trabado en un 400 permanente.
+      if (res.status === 400 && input.email) {
+        const existing = await this.findByEmail(input.email);
+        if (existing?.sub) return { sub: existing.sub };
+      }
       throw new Error(`Identity provider user creation failed (${res.status})`);
     }
     const location = res.headers.get('location');

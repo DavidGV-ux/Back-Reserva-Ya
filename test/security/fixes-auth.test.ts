@@ -501,3 +501,54 @@ describe('RY-EMAIL-VERIFIED-NO-PROOF — emailVerified nunca se deriva de la con
     expect(bodies[0].requiredActions).toContain('UPDATE_PROFILE');
   });
 });
+
+// ---------------------------------------------------------------------------
+// RY-VERIFY-RETRY
+// ---------------------------------------------------------------------------
+
+describe('RY-VERIFY-RETRY — reintentar la verificación no rompe el registro', () => {
+  it('RY-VERIFY-RETRY · Keycloak reutiliza el usuario si el correo ya existe', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchStub = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/protocol/openid-connect/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 300 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (u.endsWith('/users') && init?.method === 'POST') {
+        return new Response('', { status: 400 });
+      }
+      if (u.includes('/users?email=') && (init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify([{ id: 'kc-existente', email: 'ana@test.com' }]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchStub);
+
+    try {
+      const gateway = new KeycloakAdminGateway({
+        baseUrl: 'http://keycloak.local',
+        realm: 'x',
+        clientId: 'admin-cli',
+        clientSecret: 'secret',
+      });
+      const created = await gateway.createUser({
+        username: 'ry-1',
+        email: 'ana@test.com',
+        temporaryPassword: 'secreta123',
+        persistentPassword: true,
+        enabled: true,
+      });
+
+      expect(created).toEqual({ sub: 'kc-existente' });
+    } finally {
+      vi.unstubAllGlobals();
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
