@@ -96,9 +96,37 @@ describe('ProfileUseCases — reintento de registro (bucle de verificación)', (
     const second = await usecases.requestCode(baseInput);
     expect(second.id).toBe(first.id);
     expect(second.alreadyVerified).toBeFalsy();
+    expect(second.verificationToken).not.toBe(first.verificationToken);
     // Solo existe un pending para el teléfono.
     const rows = [...pendings.rows.values()].filter((r) => r.phoneDigits === '573001112233');
     expect(rows).toHaveLength(1);
+  });
+
+  it('el token del deep link verifica solo desde el teléfono del pending y se regenera al reintentar', async () => {
+    const first = await usecases.requestCode(baseInput);
+    const second = await usecases.requestCode(baseInput);
+
+    expect(second.verificationToken).toMatch(/^RY-[0-9a-f]{12}$/);
+    expect(second.verificationToken).not.toBe(first.verificationToken);
+    await expect(
+      usecases.verifyVerificationTokenByPhone({
+        phone: baseInput.phone,
+        token: first.verificationToken,
+      }),
+    ).rejects.toThrowError(/invalid code/i);
+
+    const verified = await usecases.verifyVerificationTokenByPhone({
+      phone: baseInput.phone,
+      token: second.verificationToken,
+    });
+    expect(verified).toEqual({ id: first.id, verified: true });
+
+    await expect(
+      usecases.verifyVerificationTokenByPhone({
+        phone: '+573009999999',
+        token: second.verificationToken,
+      }),
+    ).rejects.toThrowError(/no pending registration/i);
   });
 
   it('regenera el código si el reintento llega con el código ya expirado', async () => {

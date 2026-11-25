@@ -39,10 +39,15 @@ export function whatsappRouter(services: AppServices, verifier: KeycloakVerifier
   // Verificación de código por WhatsApp (llamada desde el webhook del bot).
   // Valida el código contra pending_registrations y, si es válido, crea el
   // usuario en Keycloak + user_profiles (registro completado).
-  const verifyCodeByPhoneSchema = z.object({
-    phone: z.string().min(1),
-    code: z.string().regex(/^\d{6}$/),
-  });
+  const verifyCodeByPhoneSchema = z
+    .object({
+      phone: z.string().min(1),
+      code: z.string().regex(/^\d{6}$/).optional(),
+      verificationToken: z.string().regex(/^RY-[0-9a-f]{12}$/i).optional(),
+    })
+    .refine((v) => Boolean(v.code || v.verificationToken), {
+      message: 'code or verificationToken is required',
+    });
 
   router.post(
     '/verify-code',
@@ -55,11 +60,16 @@ export function whatsappRouter(services: AppServices, verifier: KeycloakVerifier
         });
       }
 
-      const phoneDigits = parsed.data.phone.replace(/[^0-9]/g, '');
-      const { id } = await services.profile.verifyPendingByPhone({
-        phone: parsed.data.phone,
-        code: parsed.data.code,
-      });
+      const verified = parsed.data.verificationToken
+        ? await services.profile.verifyVerificationTokenByPhone({
+            phone: parsed.data.phone,
+            token: parsed.data.verificationToken,
+          })
+        : await services.profile.verifyPendingByPhone({
+            phone: parsed.data.phone,
+            code: parsed.data.code ?? '',
+          });
+      const { id } = verified;
 
       // Completar el registro: crear en Keycloak + user_profiles
       // (usa los datos guardados en pending_registrations).

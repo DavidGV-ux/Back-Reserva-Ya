@@ -117,7 +117,11 @@ export function authRouter(services: AppServices): Router {
         return;
       }
 
-      res.status(201).json({ ok: true, id: result.id });
+      res.status(201).json({
+        ok: true,
+        id: result.id,
+        verificationToken: result.verificationToken,
+      });
     }),
   );
 
@@ -191,7 +195,12 @@ export function authRouter(services: AppServices): Router {
         id: parsed.data.id,
         phone: parsed.data.phone,
       });
-      res.json({ ok: true, id: result.id, retryAfterSeconds: result.retryAfterSeconds });
+      res.json({
+        ok: true,
+        id: result.id,
+        verificationToken: result.verificationToken,
+        retryAfterSeconds: result.retryAfterSeconds,
+      });
     }),
   );
 

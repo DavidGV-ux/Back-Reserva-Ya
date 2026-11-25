@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createHash } from 'node:crypto';
 import { authRouter } from '../../src/entrypoints/http/routes/auth.routes';
+import { whatsappRouter } from '../../src/entrypoints/http/routes/whatsapp.routes';
 import { errorHandler, notFoundHandler } from '../../src/entrypoints/http/middleware/errors';
 import { AppServices } from '../../src/application/container';
 import { ProfileUseCases } from '../../src/application/usecases/profile/profile.usecases';
@@ -19,6 +20,16 @@ function mountAuth(profile: Record<string, unknown>, identity: Record<string, un
   const app = express();
   app.use(express.json());
   app.use('/auth', authRouter(services));
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+  return { app, services };
+}
+
+function mountWhatsapp(profile: Record<string, unknown>) {
+  const services = { profile } as unknown as AppServices;
+  const app = express();
+  app.use(express.json());
+  app.use('/whatsapp', whatsappRouter(services, {} as any));
   app.use(notFoundHandler);
   app.use(errorHandler);
   return { app, services };
@@ -112,7 +123,12 @@ describe('RY-REG-CODE-SELFVERIFY — el código nunca se expone al navegador', (
   it('RY-REG-CODE-SELFVERIFY · /register no devuelve code', async () => {
     const profile = {
       findByPhone: vi.fn().mockResolvedValue(null),
-      requestCode: vi.fn().mockResolvedValue({ id: 'p1', code: '123456', retryAfterSeconds: 0 }),
+      requestCode: vi.fn().mockResolvedValue({
+        id: 'p1',
+        code: '123456',
+        verificationToken: 'RY-ab12cd34ef56',
+        retryAfterSeconds: 0,
+      }),
       completeRegistration: vi.fn(),
     };
     const identity = { findByEmail: vi.fn().mockResolvedValue(null) };
@@ -122,19 +138,26 @@ describe('RY-REG-CODE-SELFVERIFY — el código nunca se expone al navegador', (
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual(expect.objectContaining({ ok: true, id: 'p1' }));
+    expect(res.body.verificationToken).toBe('RY-ab12cd34ef56');
     expect(res.body).not.toHaveProperty('code');
     expect(JSON.stringify(res.body)).not.toContain('123456');
   });
 
   it('RY-REG-CODE-SELFVERIFY · /resend-code no devuelve code', async () => {
     const profile = {
-      resendCode: vi.fn().mockResolvedValue({ id: 'p1', code: '654321', retryAfterSeconds: 0 }),
+      resendCode: vi.fn().mockResolvedValue({
+        id: 'p1',
+        code: '654321',
+        verificationToken: 'RY-65ab12cd34ef',
+        retryAfterSeconds: 0,
+      }),
     };
     const { app } = mountAuth(profile, {});
 
     const res = await request(app).post('/auth/resend-code').send({ id: 'p1' });
 
     expect(res.status).toBe(200);
+    expect(res.body.verificationToken).toBe('RY-65ab12cd34ef');
     expect(res.body).not.toHaveProperty('code');
     expect(JSON.stringify(res.body)).not.toContain('654321');
   });
@@ -195,6 +218,35 @@ describe('RY-REG-CODE-SELFVERIFY — el código nunca se expone al navegador', (
       vi.unstubAllGlobals();
       if (oldEndpoint === undefined) delete process.env.WHATSAPP_EVENTS_ENDPOINT;
       else process.env.WHATSAPP_EVENTS_ENDPOINT = oldEndpoint;
+    }
+  });
+
+  it('RY-REG-CODE-SELFVERIFY · /public/whatsapp/verify-code acepta el token del deep link', async () => {
+    const oldSecret = process.env.WHATSAPP_BOT_SECRET;
+    process.env.WHATSAPP_BOT_SECRET = 'bot-secret';
+    const profile = {
+      verifyVerificationTokenByPhone: vi
+        .fn()
+        .mockResolvedValue({ id: 'p1', verified: true }),
+      completeRegistration: vi.fn().mockResolvedValue({ keycloakUserId: 'kc-1' }),
+    };
+    const { app } = mountWhatsapp(profile);
+
+    try {
+      const res = await request(app)
+        .post('/whatsapp/verify-code')
+        .set('x-whatsapp-secret', 'bot-secret')
+        .send({ phone: '+573001112233', verificationToken: 'RY-ab12cd34ef56' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, keycloakUserId: 'kc-1' });
+      expect(profile.verifyVerificationTokenByPhone).toHaveBeenCalledWith({
+        phone: '+573001112233',
+        token: 'RY-ab12cd34ef56',
+      });
+    } finally {
+      if (oldSecret === undefined) delete process.env.WHATSAPP_BOT_SECRET;
+      else process.env.WHATSAPP_BOT_SECRET = oldSecret;
     }
   });
 });
