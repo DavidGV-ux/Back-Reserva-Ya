@@ -26,7 +26,12 @@ export const DEFAULT_TENANT_SETTINGS = {
 };
 
 const BRAND_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-const MAX_LOGO_BYTES = 256 * 1024;
+export const LOGO_RULES = {
+  maxBytes: 160 * 1024,
+  minDimension: 64,
+  maxDimension: 512,
+} as const;
+const MAX_LOGO_BYTES = LOGO_RULES.maxBytes;
 const LOGO_DATA_URL_RE = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)$/;
 
 function detectLogoType(data: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
@@ -56,6 +61,51 @@ function detectLogoType(data: Buffer): 'image/png' | 'image/jpeg' | 'image/webp'
   return null;
 }
 
+/** Dimensiones leídas de los bytes, no del MIME declarado por el cliente. */
+function logoDimensions(data: Buffer, contentType: string): { width: number; height: number } | null {
+  if (contentType === 'image/png' && data.length >= 24) {
+    return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
+  }
+  if (contentType === 'image/jpeg') {
+    let offset = 2;
+    while (offset + 9 < data.length) {
+      if (data[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = data[offset + 1] ?? 0;
+      if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2 || marker === 0xc3) {
+        return { height: data.readUInt16BE(offset + 5), width: data.readUInt16BE(offset + 7) };
+      }
+      if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2;
+        continue;
+      }
+      const length = data.readUInt16BE(offset + 2);
+      if (length < 2) break;
+      offset += 2 + length;
+    }
+    return null;
+  }
+  if (contentType === 'image/webp' && data.length >= 30) {
+    const chunk = data.toString('ascii', 12, 16);
+    if (chunk === 'VP8X') {
+      return {
+        width: 1 + (data.readUIntLE(24, 3)),
+        height: 1 + (data.readUIntLE(27, 3)),
+      };
+    }
+    if (chunk === 'VP8 ') {
+      return { width: data.readUInt16LE(26) & 0x3fff, height: data.readUInt16LE(28) & 0x3fff };
+    }
+    if (chunk === 'VP8L' && data[20] === 0x2f) {
+      const bits = data.readUInt32LE(21);
+      return { width: 1 + (bits & 0x3fff), height: 1 + ((bits >> 14) & 0x3fff) };
+    }
+  }
+  return null;
+}
+
 function parseLogoDataUrl(image: string): { data: Buffer; contentType: string } {
   if (typeof image !== 'string') {
     throw new ValidationError('logo image is required');
@@ -70,13 +120,32 @@ function parseLogoDataUrl(image: string): { data: Buffer; contentType: string } 
   }
   if (data.length > MAX_LOGO_BYTES) {
     throw new ValidationError(`logo exceeds the ${Math.round(MAX_LOGO_BYTES / 1024)} KB limit`, {
+      code: 'LOGO_INVALID_SIZE',
       maxBytes: MAX_LOGO_BYTES,
       bytes: data.length,
     });
   }
   const contentType = detectLogoType(data);
   if (!contentType) {
-    throw new ValidationError('logo content is not a valid PNG, JPEG or WebP image');
+    throw new ValidationError('logo content is not a valid PNG, JPEG or WebP image', {
+      code: 'LOGO_INVALID_FORMAT',
+    });
+  }
+  const dimensions = logoDimensions(data, contentType);
+  const { minDimension: min, maxDimension: max } = LOGO_RULES;
+  if (
+    !dimensions ||
+    dimensions.width < min ||
+    dimensions.height < min ||
+    dimensions.width > max ||
+    dimensions.height > max
+  ) {
+    throw new ValidationError(`logo must be between ${min}x${min} and ${max}x${max} px`, {
+      code: 'LOGO_INVALID_DIMENSIONS',
+      minDimension: min,
+      maxDimension: max,
+      ...(dimensions ?? {}),
+    });
   }
   return { data, contentType };
 }
